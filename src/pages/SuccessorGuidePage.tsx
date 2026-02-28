@@ -49,7 +49,7 @@ export function SuccessorGuidePage() {
             aria-label="Successor guide content"
           />
           <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-            <button type="button" className="legacy-btn" style={{ width: "auto" }} onClick={handleSave} disabled={saving}>
+            <button type="button" className="legacy-btn legacy-btn-primary" style={{ width: "auto" }} onClick={handleSave} disabled={saving}>
               {saving ? "Saving…" : "Save"}
             </button>
             <button type="button" className="legacy-btn" style={{ width: "auto" }} onClick={handleCancel} disabled={saving}>

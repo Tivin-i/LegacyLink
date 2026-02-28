@@ -1,6 +1,5 @@
 import React from "react";
 import type { Template, Entry, SectionData, Category } from "../vault-types";
-import { forms } from "../styles/shared";
 
 interface TemplateFormProps {
   template: Template;
@@ -56,7 +55,6 @@ export function TemplateForm({
           onChange={(e) => setTitle(e.target.value)}
           required
           placeholder="Entry title…"
-          style={forms.titleInput}
         />
       </div>
       {categories.length > 0 && (
@@ -66,7 +64,6 @@ export function TemplateForm({
             id="entry-category"
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
-            style={forms.input}
             aria-label="Category"
           >
             <option value="">Uncategorized</option>
@@ -77,14 +74,14 @@ export function TemplateForm({
         </div>
       )}
       {template.sections.map((section) => (
-        <fieldset key={section.id} style={forms.fieldset}>
-          <legend style={forms.legend}>{section.label}</legend>
+        <fieldset key={section.id}>
+          <legend>{section.label}</legend>
           {section.fields.map((field) => {
             const raw = sections[section.id]?.[field.id];
             const valueStr =
               raw !== undefined && raw !== null ? String(raw) : "";
             return (
-              <div key={field.id} style={forms.field}>
+              <div key={field.id}>
                 <label htmlFor={`${section.id}-${field.id}`}>
                   {field.label}
                   {field.required && " *"}
@@ -99,7 +96,6 @@ export function TemplateForm({
                     required={field.required}
                     placeholder={field.placeholder ?? "…"}
                     rows={3}
-                    style={forms.textarea}
                   />
                 ) : (
                   <input
@@ -130,7 +126,6 @@ export function TemplateForm({
                     required={field.required}
                     placeholder={field.placeholder ?? "…"}
                     autoComplete={field.type === "password" ? "off" : undefined}
-                    style={forms.input}
                   />
                 )}
               </div>
@@ -138,11 +133,11 @@ export function TemplateForm({
           })}
         </fieldset>
       ))}
-      <div style={forms.actions}>
-        <button type="button" onClick={onCancel} style={forms.cancel}>
+      <div className="legacy-form-actions">
+        <button type="button" onClick={onCancel} className="legacy-btn" style={{ width: "auto" }}>
           Cancel
         </button>
-        <button type="submit" style={forms.submit}>
+        <button type="submit" className="legacy-btn legacy-btn-primary" style={{ width: "auto" }}>
           {saveLabel}
         </button>
       </div>

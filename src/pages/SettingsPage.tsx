@@ -39,7 +39,7 @@ export function SettingsPage() {
           style={{ marginTop: "0.25rem", marginBottom: "1rem" }}
         />
         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <button type="submit" className="legacy-btn" style={{ width: "auto" }}>
+          <button type="submit" className="legacy-btn legacy-btn-primary" style={{ width: "auto" }}>
             Save
           </button>
           {saved && (

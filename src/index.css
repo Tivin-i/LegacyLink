@@ -365,6 +365,15 @@ sup {
   color: var(--bg);
 }
 
+.legacy-btn-primary {
+  background: var(--ink);
+  color: var(--bg);
+}
+.legacy-btn-primary:hover:not(:disabled) {
+  background: transparent;
+  color: var(--ink);
+}
+
 .legacy-btn span {
   float: right;
 }
@@ -424,6 +433,17 @@ sup {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+.legacy-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.legacy-content fieldset > div {
+  margin-top: 0.75rem;
 }
 
 /* Scrollbar */

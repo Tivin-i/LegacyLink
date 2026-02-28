@@ -106,7 +106,7 @@ export function CategoriesPage() {
                     style={{ padding: "0.35rem 0.5rem", minWidth: "10rem" }}
                     aria-label="Rename category"
                   />
-                  <button type="submit" className="legacy-btn" style={{ width: "auto", padding: "0.35rem 0.75rem" }}>
+                  <button type="submit" className="legacy-btn legacy-btn-primary" style={{ width: "auto", padding: "0.35rem 0.75rem" }}>
                     Save
                   </button>
                   <button type="button" className="legacy-btn" style={{ width: "auto", padding: "0.35rem 0.75rem" }} onClick={() => { setEditingId(null); setEditName(""); }}>
