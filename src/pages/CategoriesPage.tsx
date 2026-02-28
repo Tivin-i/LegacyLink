@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useVault } from "../context/VaultContext";
+import { ConfirmDeleteModal } from "../components/layout";
 
 export function CategoriesPage() {
   const { categories, addCategory, renameCategory, deleteCategory } = useVault();
@@ -8,6 +9,7 @@ export function CategoriesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,10 +45,17 @@ export function CategoriesPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDeleteClick = (id: string, name: string) => {
     setError(null);
-    const result = await deleteCategory(id);
-    if (!result.ok) setError(result.error ?? "Failed to delete.");
+    setDeleteTarget({ id, name });
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (!deleteTarget) return;
+    setError(null);
+    const result = await deleteCategory(deleteTarget.id);
+    if (result.ok) setDeleteTarget(null);
+    else setError(result.error ?? "Failed to delete.");
   };
 
   return (
@@ -110,7 +119,7 @@ export function CategoriesPage() {
                   <button type="button" className="legacy-btn" style={{ width: "auto", padding: "0.25rem 0.5rem", fontSize: "0.875rem" }} onClick={() => startEdit(cat.id, cat.name)} aria-label={`Rename ${cat.name}`}>
                     Rename
                   </button>
-                  <button type="button" className="legacy-btn" style={{ width: "auto", padding: "0.25rem 0.5rem", fontSize: "0.875rem" }} onClick={() => window.confirm(`Delete "${cat.name}"?`) && handleDelete(cat.id)} aria-label={`Delete ${cat.name}`}>
+                  <button type="button" className="legacy-btn" style={{ width: "auto", padding: "0.25rem 0.5rem", fontSize: "0.875rem" }} onClick={() => handleDeleteClick(cat.id, cat.name)} aria-label={`Delete ${cat.name}`}>
                     Delete
                   </button>
                 </>
@@ -119,6 +128,14 @@ export function CategoriesPage() {
           ))}
         </ul>
       )}
+      <ConfirmDeleteModal
+        open={deleteTarget != null}
+        title="Delete category?"
+        resourceLabel="category"
+        resourceName={deleteTarget?.name ?? ""}
+        onConfirm={confirmDeleteCategory}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

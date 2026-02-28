@@ -59,6 +59,9 @@ interface VaultContextValue {
   /** For Successors guide (vault-level). */
   successorGuide: string;
   updateSuccessorGuide: (text: string) => Promise<void>;
+  /** User AKA nickname (e.g. for Author display). */
+  userAka: string;
+  updateUserAka: (aka: string) => Promise<void>;
   /** History log (newest first). */
   history: HistoryEntry[];
   /** Uploaded keys (SSH/certs). */
@@ -350,6 +353,17 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     [vault, passphraseRef]
   );
 
+  const userAka = vault?.userAka ?? "";
+  const updateUserAka = useCallback(
+    async (aka: string) => {
+      if (!vault || !passphraseRef) return;
+      const next = { ...vault, userAka: aka.trim() };
+      setVault(next);
+      await saveVault(passphraseRef.current, next);
+    },
+    [vault, passphraseRef]
+  );
+
   const history = vault?.history ?? [];
   const uploadedKeys = vault?.uploadedKeys ?? [];
 
@@ -418,6 +432,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       registerPasskey,
       successorGuide,
       updateSuccessorGuide,
+      userAka,
+      updateUserAka,
       history,
       uploadedKeys,
       addUploadedKey,
@@ -447,6 +463,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       registerPasskey,
       successorGuide,
       updateSuccessorGuide,
+      userAka,
+      updateUserAka,
       history,
       uploadedKeys,
       addUploadedKey,

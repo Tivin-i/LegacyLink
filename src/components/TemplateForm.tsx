@@ -66,7 +66,7 @@ export function TemplateForm({
             id="entry-category"
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
-            style={{ ...forms.input, padding: "0.5rem 0.75rem" }}
+            style={forms.input}
             aria-label="Category"
           >
             <option value="">Uncategorized</option>

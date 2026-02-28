@@ -89,6 +89,9 @@ export function AppLayout({ children, contextPanel }: AppLayoutProps) {
           <NavItem to="/export-import" end>
             Successor Key <sup>(IMPORTANT)</sup>
           </NavItem>
+          <NavItem to="/settings" end>
+            Settings
+          </NavItem>
         </NavSection>
       </nav>
 

@@ -43,6 +43,8 @@ export interface VaultData {
   history?: HistoryEntry[];
   /** Uploaded SSH keys and certificates (encrypted with vault). */
   uploadedKeys?: UploadedKey[];
+  /** User's AKA nickname (e.g. for "Author" display). Optional. */
+  userAka?: string;
 }
 
 export interface Entry {

@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useVault } from "../context/VaultContext";
+import { ConfirmDeleteModal } from "../components/layout";
 
 const MAX_FILE_SIZE_MB = 2;
 const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -11,6 +12,7 @@ export function KeysPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -109,7 +111,7 @@ export function KeysPage() {
                   type="button"
                   className="legacy-btn"
                   style={{ width: "auto", padding: "0.25rem 0.5rem" }}
-                  onClick={() => window.confirm(`Delete "${key.name}"?`) && deleteUploadedKey(key.id)}
+                  onClick={() => setDeleteTarget({ id: key.id, name: key.name })}
                 >
                   Delete
                 </button>
@@ -118,6 +120,19 @@ export function KeysPage() {
           })}
         </ul>
       )}
+      <ConfirmDeleteModal
+        open={deleteTarget != null}
+        title="Delete key or certificate?"
+        resourceLabel="file"
+        resourceName={deleteTarget?.name ?? ""}
+        onConfirm={async () => {
+          if (deleteTarget) {
+            await deleteUploadedKey(deleteTarget.id);
+            setDeleteTarget(null);
+          }
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

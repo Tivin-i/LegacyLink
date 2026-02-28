@@ -9,3 +9,4 @@ export { ActionButton } from "./ActionButton";
 export { ContextPanel } from "./ContextPanel";
 export { AppLayout } from "./AppLayout";
 export { ProtectedLayout } from "./ProtectedLayout";
+export { ConfirmDeleteModal } from "./ConfirmDeleteModal";

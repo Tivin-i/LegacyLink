@@ -8,7 +8,7 @@ import {
 import { readVaultBlob, writeVaultBlob } from "../storage/db";
 import type { VaultData, Entry, HistoryEntry } from "../vault-types";
 
-const VAULT_VERSION = 3;
+const VAULT_VERSION = 4;
 const DEFAULT_VAULT: VaultData = {
   version: VAULT_VERSION,
   entries: [],
@@ -16,6 +16,7 @@ const DEFAULT_VAULT: VaultData = {
   successorGuide: "",
   history: [],
   uploadedKeys: [],
+  userAka: "",
 };
 
 function migrateVault(data: VaultData): VaultData {
@@ -31,10 +32,17 @@ function migrateVault(data: VaultData): VaultData {
   if (out.version < 3) {
     out = {
       ...out,
-      version: VAULT_VERSION,
+      version: 3,
       successorGuide: out.successorGuide ?? "",
       history: out.history ?? [],
       uploadedKeys: out.uploadedKeys ?? [],
+    };
+  }
+  if (out.version < 4) {
+    out = {
+      ...out,
+      version: VAULT_VERSION,
+      userAka: out.userAka ?? "",
     };
   }
   return out;
@@ -86,6 +94,7 @@ export async function createAndSaveEmptyVault(passphrase: string): Promise<Vault
     successorGuide: "",
     history: appendHistory([], { action: "store_created" }),
     uploadedKeys: [],
+    userAka: "",
   };
   await saveVault(passphrase, initial);
   return initial;

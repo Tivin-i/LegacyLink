@@ -12,6 +12,7 @@ import { SuccessorGuidePage } from "./pages/SuccessorGuidePage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { KeysPage } from "./pages/KeysPage";
 import { PrintViewPage } from "./pages/PrintViewPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { ProtectedLayout } from "./components/layout";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -42,6 +43,7 @@ function AppRoutes() {
         <Route path="keys" element={<KeysPage />} />
         <Route path="print" element={<PrintViewPage />} />
         <Route path="export-import" element={<ExportImportPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

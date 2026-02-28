@@ -4,17 +4,18 @@ import { useVault } from "../context/VaultContext";
 import { useLayoutContext } from "../context/LayoutContext";
 import { getTemplate } from "../templates";
 import { TemplateForm } from "../components/TemplateForm";
-import { DocMeta, DataBlock } from "../components/layout";
+import { DocMeta, DataBlock, ConfirmDeleteModal } from "../components/layout";
 import { MarkdownContent } from "../components/MarkdownContent";
 import type { SectionData } from "../vault-types";
 
 export function EntryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getEntry, updateEntry, deleteEntry, categories } = useVault();
+  const { getEntry, updateEntry, deleteEntry, categories, userAka } = useVault();
   const { setContextPanelActions } = useLayoutContext() ?? {};
   const entry = id ? getEntry(id) : undefined;
   const [editing, setEditing] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
   useEffect(() => {
     if (setContextPanelActions == null) return;
@@ -63,9 +64,11 @@ export function EntryDetailPage() {
     setEditing(false);
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm("Delete this entry? This cannot be undone.")) return;
+  const handleDelete = () => setDeleteModalOpen(true);
+
+  const confirmDeleteEntry = async () => {
     await deleteEntry(entry.id);
+    setDeleteModalOpen(false);
     navigate("/entries", { replace: true });
   };
 
@@ -94,6 +97,14 @@ export function EntryDetailPage() {
             Delete
           </button>
         </div>
+        <ConfirmDeleteModal
+          open={deleteModalOpen}
+          title="Delete system?"
+          resourceLabel="system"
+          resourceName={entry.title}
+          onConfirm={confirmDeleteEntry}
+          onCancel={() => setDeleteModalOpen(false)}
+        />
       </div>
     );
   }
@@ -106,13 +117,13 @@ export function EntryDetailPage() {
       <DocMeta
         items={[
           { label: "Last Updated", value: formattedDate },
-          { label: "Author", value: <>Admin <sup className="sup-tag">aka DAD</sup></> },
+          { label: "Author", value: userAka ? <>Admin <sup className="sup-tag">aka {userAka}</sup></> : "Admin" },
           { label: "Status", value: <>Live <sup className="sup-tag">(US-EAST)</sup></> },
         ]}
       />
 
       <h1 className="type-display">
-        {entry.title} <sup>v2.0</sup>
+        {entry.title}
       </h1>
 
       <div className="content-body">

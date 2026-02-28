@@ -6,6 +6,13 @@ All notable changes to LegacyLink are documented here.
 
 ### Added
 
+- **Versioning**
+  - Project version in `package.json` (current 0.0.2). Scripts: `npm run version:patch`, `version:minor`, `version:major` (bump version, update changelog; script prints git tag and push commands). GitHub Actions **Release** workflow creates a GitHub Release when a `v*` tag is pushed. Cursor rule `.cursor/rules/versioning.mdc` for maintaining and bumping versions with every update (semver: patch = fixes/docs, minor = features, major = breaking).
+- **Settings and AKA**
+  - **Settings page** at `/settings`: set your AKA (nickname). Stored in vault as `userAka` (vault version 4 with migration). Sidebar link "Settings" under Emergency Protocols.
+  - Entry detail DocMeta "Author" shows "Admin aka {userAka}" when set; otherwise "Admin".
+- **Delete confirmation**
+  - **ConfirmDeleteModal**: user must type the resource name to confirm deletion. Used for deleting systems (entries), categories, and keys/certificates. Styled overlay and card; Delete button disabled until the typed name matches.
 - **Store flow and Add Passkey (plan phases 1–2)**
   - **Store flow (1.1):** UnlockPage choice "Create a new LegacyLink Store"; create-key screen heading "Create a new decryption key for this store" so the two steps are explicit.
   - **Store flow (1.2):** Open existing store: submit button shows "Verifying key…" while verifying decryption key (replacing "Checking…").
@@ -47,6 +54,12 @@ All notable changes to LegacyLink are documented here.
 
 ### Fixed
 
+- **New entry scroll**
+  - Main content area can scroll when adding a new entry: grid main cell now has `min-height: 0` so overflow-y works.
+- **System name display**
+  - Removed hardcoded "v2.0" from entry (system) title on the entry detail page.
+- **Category field**
+  - Category select in New Entry and Edit forms is styled like other inputs (border, padding, font) via `.legacy-content select` and shared form styles.
 - **New entry**
   - Creating a new entry no longer shows "Entry not found." after save. Entry creation now uses a single `createEntry(templateId, title, sections)` so the new entry is written and persisted in one vault update (fixes race with previous addEntry + updateEntry flow).
 
