@@ -1,18 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useVault } from "../context/VaultContext";
-import { authenticateWithPasskey } from "../auth/passkey";
-import { readStoredBlobFromFile } from "../crypto/vault-crypto";
-import type { StoredEncryptedBlob } from "../crypto/vault-crypto";
-import { usePasskeyAvailable } from "../hooks/usePasskeyAvailable";
 import { TextureOverlay } from "../components/layout";
 
 type Step =
   | "choice"
   | "create-key"
   | "open-file"
-  | "open-key"
-  | "unlock";
+  | "open-key";
 
 const formColumnStyle: React.CSSProperties = {
   display: "flex",
@@ -30,63 +25,47 @@ const errorStyle: React.CSSProperties = {
   fontSize: "0.875rem",
   opacity: 0.9,
 };
-const mutedStyle: React.CSSProperties = {
-  margin: "1.5rem 0 0",
-  fontSize: "0.8125rem",
-  opacity: 0.7,
-};
+
+function isSavePickerSupported(): boolean {
+  return typeof window !== "undefined" && typeof window.showSaveFilePicker === "function";
+}
+
+function isOpenPickerSupported(): boolean {
+  return typeof window !== "undefined" && typeof window.showOpenFilePicker === "function";
+}
 
 export function UnlockPage() {
-  const [step, setStep] = useState<Step>("unlock");
+  const [step, setStep] = useState<Step>("choice");
   const [passphrase, setPassphrase] = useState("");
   const [confirmPassphrase, setConfirmPassphrase] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [importFile, setImportFile] = useState<StoredEncryptedBlob | null>(null);
-  const passkeyAvailable = usePasskeyAvailable();
-  const {
-    hasExistingStore,
-    unlock,
-    createNewStore,
-    importExistingStore,
-  } = useVault();
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importHandle, setImportHandle] = useState<FileSystemFileHandle | null>(null);
+  const [createHandle, setCreateHandle] = useState<FileSystemFileHandle | null>(null);
+  const { createNewStoreWithHandle, importExistingStore } = useVault();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (hasExistingStore === false) {
-      setStep("choice");
-    } else if (hasExistingStore === true) {
-      setStep("unlock");
-    }
-  }, [hasExistingStore]);
-
-  const doUnlock = async (key: string) => {
+  const handleCreateNewClick = async () => {
     setError(null);
-    setLoading(true);
-    const result = await unlock(key);
-    setLoading(false);
-    if (result.ok) {
-      navigate("/entries", { replace: true });
+    setPassphrase("");
+    setConfirmPassphrase("");
+    setCreateHandle(null);
+    if (isSavePickerSupported()) {
+      try {
+        const handle = await window.showSaveFilePicker!({
+          suggestedName: "legacylink-vault.json",
+          types: [{ description: "LegacyLink vault", accept: { "application/json": [".json"] } }],
+        });
+        setCreateHandle(handle);
+        setStep("create-key");
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") {
+          setError(err instanceof Error ? err.message : "Could not open save dialog.");
+        }
+      }
     } else {
-      setError(result.error ?? "Unlock failed. Wrong key or corrupted data.");
-    }
-  };
-
-  const handleUnlockSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!passphrase.trim()) {
-      setError("Enter your decryption key.");
-      return;
-    }
-    await doUnlock(passphrase.trim());
-  };
-
-  const handlePasskey = async () => {
-    const result = await authenticateWithPasskey();
-    if (result.ok) {
-      await doUnlock(result.passphrase);
-    } else {
-      setError(result.error ?? "Passkey sign-in failed.");
+      setStep("create-key");
     }
   };
 
@@ -101,28 +80,65 @@ export function UnlockPage() {
       setError("Decryption key and confirmation do not match.");
       return;
     }
+    if (isSavePickerSupported() && !createHandle) {
+      setError("Please choose where to save the vault file first.");
+      return;
+    }
     setLoading(true);
-    const result = await createNewStore(passphrase.trim());
-    setLoading(false);
-    if (result.ok) {
-      navigate("/entries", { replace: true });
-    } else {
-      setError(result.error ?? "Failed to create store.");
+    try {
+      if (createHandle) {
+        const result = await createNewStoreWithHandle(createHandle, passphrase.trim());
+        setLoading(false);
+        if (result.ok) {
+          setPassphrase("");
+          setConfirmPassphrase("");
+          navigate("/entries", { replace: true });
+        } else {
+          setError(result.error ?? "Failed to create store.");
+        }
+      } else {
+        setError("Save file picker is not supported in this browser. Use a modern browser (e.g. Chrome, Edge).");
+        setLoading(false);
+      }
+    } catch (err) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : "Failed to create store.");
     }
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleOpenFilePicker = async () => {
+    setError(null);
+    if (isOpenPickerSupported()) {
+      try {
+        const handles = await window.showOpenFilePicker!({
+          types: [{ description: "LegacyLink vault", accept: { "application/json": [".json"] } }],
+          multiple: false,
+        });
+        const handle = handles[0];
+        if (handle) {
+          const file = await handle.getFile();
+          setImportFile(file);
+          setImportHandle(handle);
+          setStep("open-key");
+        }
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") {
+          setError(err instanceof Error ? err.message : "Could not open file.");
+        }
+      }
+    } else {
+      setStep("open-file");
+    }
+  };
+
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
     setError(null);
-    try {
-      const stored = await readStoredBlobFromFile(file);
-      setImportFile(stored);
-      setStep("open-key");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Invalid file.");
-    }
-    e.target.value = "";
+    setImportFile(file);
+    setImportHandle(null);
+    setStep("open-key");
   };
 
   const handleOpenStoreSubmit = async (e: React.FormEvent) => {
@@ -134,9 +150,11 @@ export function UnlockPage() {
     }
     setError(null);
     setLoading(true);
-    const result = await importExistingStore(importFile, passphrase.trim());
+    const result = await importExistingStore(importFile, passphrase.trim(), importHandle);
     setLoading(false);
     if (result.ok) {
+      setPassphrase("");
+      setConfirmPassphrase("");
       navigate("/entries", { replace: true });
     } else {
       setError(result.error ?? "Wrong key or invalid file.");
@@ -148,23 +166,12 @@ export function UnlockPage() {
     setPassphrase("");
     setConfirmPassphrase("");
     setImportFile(null);
+    setImportHandle(null);
+    setCreateHandle(null);
     setError(null);
   };
 
-  if (hasExistingStore === null) {
-    return (
-      <>
-        <TextureOverlay />
-        <main className="legacy-standalone">
-          <div className="legacy-card">
-            <p style={mutedStyle}>Loading…</p>
-          </div>
-        </main>
-      </>
-    );
-  }
-
-  if (hasExistingStore === false && step === "choice") {
+  if (step === "choice") {
     return (
       <>
         <TextureOverlay />
@@ -172,51 +179,52 @@ export function UnlockPage() {
           <div className="legacy-card">
             <h1 className="type-display">LegacyLink</h1>
             <p className="content-body" style={{ marginTop: "0.5rem" }}>
-              No store on this device. Create a new one or open an existing store from a file.
+              Import a vault file or create a new one. You choose where the vault file is saved.
             </p>
             <div style={formColumnStyle}>
               <button
                 type="button"
                 className="legacy-btn"
                 style={{ width: "100%" }}
-                onClick={() => {
-                  setStep("create-key");
-                  setError(null);
-                  setPassphrase("");
-                  setConfirmPassphrase("");
-                }}
+                onClick={() => void handleOpenFilePicker()}
               >
-                Create a new LegacyLink Store <span>+</span>
+                Import vault <span>→</span>
               </button>
               <button
                 type="button"
                 className="legacy-btn"
                 style={{ width: "100%" }}
-                onClick={() => {
-                  setStep("open-file");
-                  setError(null);
-                  setImportFile(null);
-                }}
+                onClick={handleCreateNewClick}
               >
-                Open existing LegacyLink Store (import from file) <span>→</span>
+                Create a new one <span>+</span>
               </button>
             </div>
+            {error && (
+              <p role="alert" style={{ ...errorStyle, marginTop: "1rem" }}>
+                {error}
+              </p>
+            )}
           </div>
         </main>
       </>
     );
   }
 
-  if (hasExistingStore === false && step === "create-key") {
+  if (step === "create-key") {
     return (
       <>
         <TextureOverlay />
         <main className="legacy-standalone">
           <div className="legacy-card">
-            <h1 className="type-display">Create a new decryption key for this store</h1>
+            <h1 className="type-display">Create a new vault</h1>
             <p className="content-body" style={{ marginTop: "0.5rem" }}>
-              Choose a decryption key. You will need it every time you open this store. Keep a backup in a safe place.
+              Choose a decryption key. You will need it every time you open this vault. Keep a backup in a safe place.
             </p>
+            {createHandle && (
+              <p className="content-body" style={{ fontSize: "0.875rem", opacity: 0.85, marginTop: "0.25rem" }}>
+                Saving to the file you selected.
+              </p>
+            )}
             <form onSubmit={handleCreateStoreSubmit} style={formColumnStyle}>
               <label htmlFor="passphrase">Decryption key</label>
               <input
@@ -253,11 +261,11 @@ export function UnlockPage() {
                 </button>
                 <button
                   type="submit"
-                  className="legacy-btn"
+                  className="legacy-btn legacy-btn-primary"
                   style={{ width: "auto" }}
                   disabled={loading || !passphrase.trim() || !confirmPassphrase.trim()}
                 >
-                  {loading ? "Creating…" : "Create store"}
+                  {loading ? "Creating…" : "Create vault"}
                 </button>
               </div>
             </form>
@@ -267,23 +275,23 @@ export function UnlockPage() {
     );
   }
 
-  if (hasExistingStore === false && step === "open-file") {
+  if (step === "open-file") {
     return (
       <>
         <TextureOverlay />
         <main className="legacy-standalone">
           <div className="legacy-card">
-            <h1 className="type-display">Open existing Store</h1>
+            <h1 className="type-display">Import vault</h1>
             <p className="content-body" style={{ marginTop: "0.5rem" }}>
-              Select an exported LegacyLink store file, then enter its decryption key.
+              Select a LegacyLink vault file (.json), then enter its decryption key.
             </p>
             <div style={formColumnStyle}>
-              <label htmlFor="store-file">Store file</label>
+              <label htmlFor="store-file">Vault file</label>
               <input
                 id="store-file"
                 type="file"
                 accept=".json,application/json"
-                onChange={handleFileSelect}
+                onChange={handleFileInputChange}
                 style={{ padding: "0.5rem" }}
               />
               {error && (
@@ -301,7 +309,7 @@ export function UnlockPage() {
     );
   }
 
-  if (hasExistingStore === false && step === "open-key" && importFile) {
+  if (step === "open-key" && importFile) {
     return (
       <>
         <TextureOverlay />
@@ -309,7 +317,7 @@ export function UnlockPage() {
           <div className="legacy-card">
             <h1 className="type-display">Decryption key</h1>
             <p className="content-body" style={{ marginTop: "0.5rem" }}>
-              Enter the decryption key for the store you selected. It will be checked before importing.
+              Enter the decryption key for the vault you selected.
             </p>
             <form onSubmit={handleOpenStoreSubmit} style={formColumnStyle}>
               <label htmlFor="import-passphrase" className="sr-only">
@@ -338,11 +346,11 @@ export function UnlockPage() {
                 </button>
                 <button
                   type="submit"
-                  className="legacy-btn"
+                  className="legacy-btn legacy-btn-primary"
                   style={{ width: "auto" }}
                   disabled={loading || !passphrase.trim()}
                 >
-                  {loading ? "Verifying key…" : "Open store"}
+                  {loading ? "Opening…" : "Open vault"}
                 </button>
               </div>
             </form>
@@ -352,69 +360,39 @@ export function UnlockPage() {
     );
   }
 
-  return (
-    <>
-      <TextureOverlay />
-      <main className="legacy-standalone">
-        <div className="legacy-card">
-          <h1 className="type-display">LegacyLink</h1>
-          <p className="content-body" style={{ marginTop: "0.5rem" }}>
-            Enter your decryption key to open your vault.
-          </p>
-          <form onSubmit={handleUnlockSubmit} style={formColumnStyle}>
-            <label htmlFor="passphrase" className="sr-only">
-              Decryption key
-            </label>
-            <input
-              id="passphrase"
-              name="passphrase"
-              type="password"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              disabled={loading}
-              autoComplete="current-password"
-              autoFocus
-              placeholder="Decryption key…"
-              aria-describedby={error ? "passphrase-error" : undefined}
-              aria-invalid={!!error}
-            />
-            {error && (
-              <p id="passphrase-error" role="alert" style={errorStyle}>
-                {error}
-              </p>
-            )}
-            <button
-              type="submit"
-              className="legacy-btn"
-              style={{ width: "100%" }}
-              disabled={loading || !passphrase.trim()}
-              aria-label="Unlock vault"
-            >
-              {loading ? "Unlocking…" : "Unlock"}
-            </button>
-          </form>
-          {passkeyAvailable && (
-            <div style={{ marginTop: "0.75rem" }}>
+  if (step === "open-key" && !importFile) {
+    return (
+      <>
+        <TextureOverlay />
+        <main className="legacy-standalone">
+          <div className="legacy-card">
+            <h1 className="type-display">LegacyLink</h1>
+            <p className="content-body" style={{ marginTop: "0.5rem" }}>
+              Import a vault file or create a new one. You choose where the vault file is saved.
+            </p>
+            <div style={formColumnStyle}>
               <button
                 type="button"
                 className="legacy-btn"
                 style={{ width: "100%" }}
-                onClick={handlePasskey}
-                disabled={loading}
-                aria-label="Unlock with passkey"
+                onClick={() => void handleOpenFilePicker()}
               >
-                Unlock with passkey <span>→</span>
+                Import vault <span>→</span>
+              </button>
+              <button
+                type="button"
+                className="legacy-btn"
+                style={{ width: "100%" }}
+                onClick={handleCreateNewClick}
+              >
+                Create a new one <span>+</span>
               </button>
             </div>
-          )}
-          <p style={mutedStyle}>
-            Your key is never stored. Keep a backup in a safe place for successors.
-          </p>
-          <p style={{ ...mutedStyle, marginTop: "0.5rem" }}>
-            After unlocking, open Export / Import to add a passkey for easier unlock.
-          </p>
-        </div>
-      </main>
-    </>
-  );
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  return null;
 }

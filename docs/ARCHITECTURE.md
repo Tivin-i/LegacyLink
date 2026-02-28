@@ -2,26 +2,25 @@
 
 ## Overview
 
-LegacyLink is a self-hosted, local-first legacy documentation system. All data is stored locally in the browser (IndexedDB) and encrypted at rest. Access is via a decryption key or optional WebAuthn passkey. No backend is required for core operation.
+LegacyLink is a self-hosted, local-first legacy documentation system. All data is stored in a **single encrypted vault file** that the user opens or creates when they use the app. There is no server-side storage and no IndexedDB; the vault file is the only persistence. Access is via decryption key only. No backend is required for core operation.
 
 ## High-Level Architecture
 
 ```
 Client SPA (React + TypeScript)
 ├── UI Layer (Unlock, List, Entry detail, Template form)
-├── Vault Logic (session, CRUD, export/import)
+├── Vault Logic (session, CRUD, file read/write)
 ├── Crypto Layer (KDF, AES-GCM, key in memory only)
-├── Auth (passkey registration/auth)
-└── Storage (IndexedDB + encrypted file format)
+└── Storage (file-based: single encrypted vault file)
 ```
 
 ## Data Model
 
 ### Vault
 
-- Single logical vault per origin (browser).
-- Persisted as one encrypted blob in IndexedDB: `vault` store, key `vault`, value `{ iv, ciphertext, salt }`.
-- In memory after unlock: plaintext JSON `VaultData = { entries: Entry[], version: number }`.
+- One vault per opened file. The app does not remember the file across sessions; on each load the user chooses **Import vault** or **Create a new one**.
+- **Vault file format:** A single JSON file containing one `StoredEncryptedBlob` (`{ version, salt, iv, ciphertext }`). The decrypted plaintext is `{ format: 2, current, versions, versionHistoryLimit }` where `current` is the live vault state and `versions` is an array of past snapshots (trimmed to `versionHistoryLimit` on each save).
+- In memory after unlock: plaintext `VaultData` (current state) plus optional `lastPayload` for version history and save logic.
 
 ### Entry
 
@@ -44,15 +43,17 @@ Client SPA (React + TypeScript)
 - **Algorithm**: AES-GCM (256-bit key), 96-bit IV (random per encrypt).
 - **Key derivation**: PBKDF2-HMAC-SHA256 from user passphrase; salt 128-bit random, stored with ciphertext; 600_000 iterations (OWASP 2023).
 - **Key lifecycle**: Derived on unlock; held in memory only; never persisted. Lock clears key and in-memory vault.
-- **Passkey (optional)**: WebAuthn authenticator used to decrypt a wrapped key stored in IndexedDB (wrapped with a key derived from passkey assertion). Successor can use passkey or passphrase.
 
 ## Storage
 
-- **IndexedDB** (via idb): DB name `legacylink-v1`, store `vault` for encrypted blob; store `meta` for wrapped passkey material and version/salt if needed.
-- **Export file**: JSON `{ version: 1, salt, iv, ciphertext }` (same as stored blob) or single-entry variant; user downloads file, can re-import on same or another device.
+- **File-based only.** No IndexedDB. The vault is read/written via:
+  - **Read:** `readVaultFromFile(file, passphrase)` or `readVaultFromHandle(handle, passphrase)` → decrypt entire file → `DecryptedVaultPayload`.
+  - **Write:** `writeVaultToHandle(handle, passphrase, payload)` → encrypt full payload → write to file.
+- **File System Access API** is used when available (`showSaveFilePicker`, `showOpenFilePicker`); fallback to `<input type="file">` for open and download for save.
+- **Export / backup:** User can "Save a copy as…" (save picker) or "Download backup" to get an encrypted JSON file; same format as the vault file.
 
 ## Security Assumptions
 
-- Origin isolation: vault tied to app origin.
+- Origin isolation: vault tied to app origin when opened.
 - No telemetry; no network for core flows.
-- Successor access: passphrase (or written recovery) is primary; passkey optional for convenience.
+- Successor access: passphrase (or written recovery) is the only way to unlock; keep the key and vault file in a safe place.

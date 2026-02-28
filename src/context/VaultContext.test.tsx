@@ -2,25 +2,32 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent, cleanup } from "@testing-library/react";
 import { useState } from "react";
 import { VaultProvider, useVault } from "./VaultContext";
-import type { StoredEncryptedBlob } from "../crypto/vault-crypto";
 
-const store = vi.hoisted(() => ({ blob: null as StoredEncryptedBlob | null }));
+function createMockHandle(): FileSystemFileHandle {
+  return {
+    kind: "file",
+    name: "vault.json",
+    getFile: () => Promise.resolve(new File([], "vault.json")),
+    createWritable: () =>
+      Promise.resolve({
+        write: () => Promise.resolve(),
+        close: () => Promise.resolve(),
+      } as unknown as FileSystemWritableFileStream),
+    isSameEntry: () => Promise.resolve(false),
+  } as FileSystemFileHandle;
+}
 
-vi.mock("../storage/db", () => ({
-  readVaultBlob: () => Promise.resolve(store.blob),
-  writeVaultBlob: (b: StoredEncryptedBlob) => {
-    store.blob = b;
-    return Promise.resolve();
-  },
-  clearVault: () => {
-    store.blob = null;
-    return Promise.resolve();
-  },
+vi.mock("../storage/file-vault-storage", () => ({
+  readVaultFromFile: vi.fn(),
+  writeVaultToHandle: vi.fn(() => Promise.resolve()),
+  buildPayloadForSave: vi.fn((_prev: unknown, newCurrent: unknown) => ({
+    current: newCurrent,
+    versions: [],
+    versionHistoryLimit: 10,
+  })),
 }));
 
-vi.mock("../auth/passkey", () => ({
-  registerPasskey: () => Promise.resolve({ ok: true }),
-}));
+const mockHandle = createMockHandle();
 
 function TestConsumer() {
   const v = useVault();
@@ -35,11 +42,11 @@ function TestConsumer() {
     <div data-testid="vault-consumer">
       <span data-testid="has-store">{String(v.hasExistingStore)}</span>
       <span data-testid="unlocked">{String(v.isUnlocked)}</span>
-      <button type="button" onClick={() => v.createNewStore("key1")}>
+      <button
+        type="button"
+        onClick={() => v.createNewStoreWithHandle(mockHandle, "key1")}
+      >
         Create Store
-      </button>
-      <button type="button" onClick={() => v.unlock("key1")}>
-        Unlock
       </button>
       <button type="button" onClick={handleCreateEntry}>
         Create Entry
@@ -69,11 +76,6 @@ function getConsumer() {
         (b) => b.textContent === "Create Store"
       ) as HTMLButtonElement;
     },
-    get unlockButton() {
-      return Array.from(el.querySelectorAll("button")).find(
-        (b) => b.textContent === "Unlock"
-      ) as HTMLButtonElement;
-    },
     get createEntryButton() {
       return Array.from(el.querySelectorAll("button")).find(
         (b) => b.textContent === "Create Entry"
@@ -84,13 +86,13 @@ function getConsumer() {
 
 describe("VaultContext", () => {
   beforeEach(() => {
-    store.blob = null;
+    vi.clearAllMocks();
   });
   afterEach(() => {
     cleanup();
   });
 
-  it("starts with hasExistingStore null then false when no store", async () => {
+  it("starts with hasExistingStore false when no store", async () => {
     render(
       <VaultProvider>
         <TestConsumer />
@@ -102,23 +104,7 @@ describe("VaultContext", () => {
     expect(getConsumer().unlocked).toBe("false");
   });
 
-  it("createNewStore unlocks and sets hasExistingStore true", async () => {
-    render(
-      <VaultProvider>
-        <TestConsumer />
-      </VaultProvider>
-    );
-    await waitFor(() => {
-      expect(getConsumer().hasStore).toBe("false");
-    });
-    fireEvent.click(getConsumer().createStoreButton);
-    await waitFor(() => {
-      expect(getConsumer().unlocked).toBe("true");
-    });
-    expect(getConsumer().hasStore).toBe("true");
-  });
-
-  it("createEntry adds entry and getEntry returns it", async () => {
+  it("createNewStoreWithHandle unlocks and allows createEntry", async () => {
     render(
       <VaultProvider>
         <TestConsumer />
@@ -134,25 +120,6 @@ describe("VaultContext", () => {
     fireEvent.click(getConsumer().createEntryButton);
     await waitFor(() => {
       expect(getConsumer().entryTitle).toBe("Test Entry");
-    });
-  });
-
-  it("unlock with correct key when store exists succeeds", async () => {
-    const { createAndSaveEmptyVault } = await import("../vault/vault-service");
-    await createAndSaveEmptyVault("key1");
-    expect(store.blob).not.toBeNull();
-
-    render(
-      <VaultProvider>
-        <TestConsumer />
-      </VaultProvider>
-    );
-    await waitFor(() => {
-      expect(getConsumer().hasStore).toBe("true");
-    });
-    fireEvent.click(getConsumer().unlockButton);
-    await waitFor(() => {
-      expect(getConsumer().unlocked).toBe("true");
     });
   });
 });

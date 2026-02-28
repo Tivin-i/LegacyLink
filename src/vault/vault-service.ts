@@ -5,19 +5,10 @@ import {
   storedToBlob,
   type StoredEncryptedBlob,
 } from "../crypto/vault-crypto";
-import { readVaultBlob, writeVaultBlob } from "../storage/db";
-import type { VaultData, Entry, HistoryEntry } from "../vault-types";
+import type { VaultData, Entry, HistoryEntry, DecryptedVaultPayload } from "../vault-types";
 
 const VAULT_VERSION = 4;
-const DEFAULT_VAULT: VaultData = {
-  version: VAULT_VERSION,
-  entries: [],
-  categories: [],
-  successorGuide: "",
-  history: [],
-  uploadedKeys: [],
-  userAka: "",
-};
+const DEFAULT_VERSION_HISTORY_LIMIT = 10;
 
 function migrateVault(data: VaultData): VaultData {
   let out: VaultData = { ...data };
@@ -45,6 +36,7 @@ function migrateVault(data: VaultData): VaultData {
       userAka: out.userAka ?? "",
     };
   }
+  out.versionHistoryLimit = out.versionHistoryLimit ?? DEFAULT_VERSION_HISTORY_LIMIT;
   return out;
 }
 
@@ -61,33 +53,10 @@ export function appendHistory(
 }
 
 /**
- * Unlock vault with passphrase. Returns decrypted data or throws.
+ * Create initial payload for a new vault file (used with file storage).
  */
-export async function unlockVault(passphrase: string): Promise<VaultData> {
-  const stored = await readVaultBlob();
-  if (!stored) return { ...DEFAULT_VAULT, entries: [] };
-  const blob = storedToBlob(stored);
-  const raw = await decryptVault(passphrase, blob);
-  return migrateVault(raw);
-}
-
-/**
- * Persist vault encrypted with passphrase.
- */
-export async function saveVault(
-  passphrase: string,
-  data: VaultData
-): Promise<void> {
-  const blob = await encryptVault(passphrase, data);
-  await writeVaultBlob(blobToStored(blob));
-}
-
-/**
- * Create a new empty store and persist it encrypted with the given passphrase.
- */
-/** Create and persist empty vault; returns the initial vault data for in-memory state. */
-export async function createAndSaveEmptyVault(passphrase: string): Promise<VaultData> {
-  const initial: VaultData = {
+export function createInitialPayload(): DecryptedVaultPayload {
+  const current: VaultData = {
     version: VAULT_VERSION,
     entries: [],
     categories: [],
@@ -95,10 +64,17 @@ export async function createAndSaveEmptyVault(passphrase: string): Promise<Vault
     history: appendHistory([], { action: "store_created" }),
     uploadedKeys: [],
     userAka: "",
+    versionHistoryLimit: DEFAULT_VERSION_HISTORY_LIMIT,
   };
-  await saveVault(passphrase, initial);
-  return initial;
+  return {
+    current,
+    versions: [],
+    versionHistoryLimit: DEFAULT_VERSION_HISTORY_LIMIT,
+  };
 }
+
+/** Migrate vault data (e.g. after reading from file). Export for use in file flow. */
+export { migrateVault };
 
 /**
  * Export vault as encrypted blob (for file download).

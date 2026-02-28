@@ -1,10 +1,19 @@
 /**
  * Shared base64 encoding/decoding for Uint8Array and ArrayBuffer.
- * Used by crypto (vault blob) and auth (passkey) layers.
+ * Used by crypto (vault blob) layer.
+ * Encoding uses chunked processing to avoid engine argument limits (~65536) for large buffers.
  */
 
+const CHUNK_SIZE = 8192;
+
 export function encodeBase64(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes));
+  if (bytes.length === 0) return "";
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    const chunk = bytes.subarray(i, Math.min(i + CHUNK_SIZE, bytes.length));
+    binary += String.fromCharCode.apply(null, Array.from(chunk));
+  }
+  return btoa(binary);
 }
 
 export function decodeBase64(b64: string): Uint8Array {

@@ -6,32 +6,38 @@ import React, {
   useState,
 } from "react";
 import type { VaultData, Entry, SectionData, Category, HistoryEntry, UploadedKey } from "../vault-types";
+import type { DecryptedVaultPayload } from "../vault-types";
 import type { StoredEncryptedBlob } from "../crypto/vault-crypto";
 import {
-  unlockVault,
-  saveVault,
   exportVaultEncrypted,
   importVaultFromBlob,
   createEmptyEntry,
-  createAndSaveEmptyVault,
+  createInitialPayload,
   appendHistory,
+  migrateVault,
 } from "../vault/vault-service";
-import { readVaultBlob } from "../storage/db";
-import { registerPasskey as registerPasskeyAuth } from "../auth/passkey";
+import {
+  readVaultFromFile,
+  writeVaultToHandle,
+  buildPayloadForSave,
+} from "../storage/file-vault-storage";
 
 interface VaultContextValue {
   isUnlocked: boolean;
   vault: VaultData | null;
-  /** True if a store exists locally; false if none; null while loading. */
+  /** No local store is loaded on app start; user must import or create. Kept for compatibility. */
   hasExistingStore: boolean | null;
-  unlock: (passphrase: string) => Promise<{ ok: boolean; error?: string }>;
   lock: () => void;
-  /** Create a new empty store and unlock with the given passphrase. */
-  createNewStore: (passphrase: string) => Promise<{ ok: boolean; error?: string }>;
-  /** Import an existing store from file and unlock; verifies key by decrypting. */
-  importExistingStore: (
-    stored: StoredEncryptedBlob,
+  /** Create a new vault file at the given handle and unlock. */
+  createNewStoreWithHandle: (
+    handle: FileSystemFileHandle,
     passphrase: string
+  ) => Promise<{ ok: boolean; error?: string }>;
+  /** Import vault from file and unlock. Pass handle if available (e.g. from showOpenFilePicker) to allow saving back. */
+  importExistingStore: (
+    file: File,
+    passphrase: string,
+    handle?: FileSystemFileHandle | null
   ) => Promise<{ ok: boolean; error?: string }>;
   updateVault: (updater: (d: VaultData) => VaultData) => Promise<void>;
   getEntry: (id: string) => Entry | undefined;
@@ -52,16 +58,26 @@ interface VaultContextValue {
   renameCategory: (id: string, name: string) => Promise<void>;
   deleteCategory: (id: string) => Promise<{ ok: boolean; error?: string }>;
   exportVault: () => Promise<StoredEncryptedBlob | null>;
+  /** Save a copy of the vault to a chosen file (save picker). Use when File System Access API is available. */
+  saveCopyToHandle: (handle: FileSystemFileHandle) => Promise<{ ok: boolean; error?: string }>;
   importVault: (
     stored: StoredEncryptedBlob
   ) => Promise<{ ok: boolean; error?: string }>;
-  registerPasskey: () => Promise<{ ok: boolean; error?: string }>;
   /** For Successors guide (vault-level). */
   successorGuide: string;
   updateSuccessorGuide: (text: string) => Promise<void>;
   /** User AKA nickname (e.g. for Author display). */
   userAka: string;
   updateUserAka: (aka: string) => Promise<void>;
+  /** Max versions to keep in vault file. Affects file size. */
+  versionHistoryLimit: number;
+  updateVersionHistoryLimit: (limit: number) => Promise<void>;
+  /** Past version snapshots (newest first). Empty if versioning disabled or no saves yet. */
+  versionSnapshots: VaultData[];
+  /** Restore a past version as current and save. Index into versionSnapshots (0 = newest). */
+  restoreVersion: (index: number) => Promise<void>;
+  /** Approximate size in bytes of the vault file as it would be saved now. Null if not unlocked. */
+  estimatedVaultSizeBytes: number | null;
   /** History log (newest first). */
   history: HistoryEntry[];
   /** Uploaded keys (SSH/certs). */
@@ -75,46 +91,36 @@ const VaultContext = createContext<VaultContextValue | null>(null);
 
 export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [vault, setVault] = useState<VaultData | null>(null);
-  const [passphraseRef, setPassphraseRef] = useState<{ current: string } | null>(
-    null
-  );
-  const [hasExistingStore, setHasExistingStore] = useState<boolean | null>(null);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    readVaultBlob().then((blob) => {
-      if (!cancelled) setHasExistingStore(blob != null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const [passphraseRef, setPassphraseRef] = useState<{ current: string } | null>(null);
+  const [fileHandle, setFileHandle] = useState<FileSystemFileHandle | null>(null);
+  const [lastPayload, setLastPayload] = useState<DecryptedVaultPayload | null>(null);
+  /** No db load; user must import or create. Always false so index shows choice. */
+  const hasExistingStore = false;
 
   const isUnlocked = vault !== null;
 
-  const unlock = useCallback(
-    async (passphrase: string): Promise<{ ok: boolean; error?: string }> => {
-      try {
-        const data = await unlockVault(passphrase);
-        setVault(data);
-        setPassphraseRef({ current: passphrase });
-        setHasExistingStore(true);
-        return { ok: true };
-      } catch (e) {
-        const message = e instanceof Error ? e.message : "Unlock failed";
-        return { ok: false, error: message };
-      }
+  const persistFile = useCallback(
+    async (data: VaultData) => {
+      if (!fileHandle || !passphraseRef) return;
+      const nextPayload = buildPayloadForSave(lastPayload, data);
+      await writeVaultToHandle(fileHandle, passphraseRef.current, nextPayload);
+      setLastPayload(nextPayload);
     },
-    []
+    [fileHandle, passphraseRef, lastPayload]
   );
 
-  const createNewStore = useCallback(
-    async (passphrase: string): Promise<{ ok: boolean; error?: string }> => {
+  const createNewStoreWithHandle = useCallback(
+    async (
+      handle: FileSystemFileHandle,
+      passphrase: string
+    ): Promise<{ ok: boolean; error?: string }> => {
       try {
-        const initial = await createAndSaveEmptyVault(passphrase);
-        setVault(initial);
+        const payload = createInitialPayload();
+        await writeVaultToHandle(handle, passphrase, payload);
+        setVault(payload.current);
+        setLastPayload(payload);
         setPassphraseRef({ current: passphrase });
-        setHasExistingStore(true);
+        setFileHandle(handle);
         return { ok: true };
       } catch (e) {
         const message = e instanceof Error ? e.message : "Create store failed";
@@ -126,19 +132,25 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const importExistingStore = useCallback(
     async (
-      stored: StoredEncryptedBlob,
-      passphrase: string
+      file: File,
+      passphrase: string,
+      handle?: FileSystemFileHandle | null
     ): Promise<{ ok: boolean; error?: string }> => {
       try {
-        const data = await importVaultFromBlob(passphrase, stored);
+        const payload = await readVaultFromFile(file, passphrase);
+        const current = migrateVault(payload.current);
         const withHistory: VaultData = {
-          ...data,
-          history: appendHistory(data.history, { action: "vault_imported" }),
+          ...current,
+          history: appendHistory(current.history, { action: "vault_imported" }),
         };
-        await saveVault(passphrase, withHistory);
+        const mergedPayload: DecryptedVaultPayload = {
+          ...payload,
+          current: withHistory,
+        };
         setVault(withHistory);
+        setLastPayload(mergedPayload);
         setPassphraseRef({ current: passphrase });
-        setHasExistingStore(true);
+        setFileHandle(handle ?? null);
         return { ok: true };
       } catch (e) {
         const message =
@@ -150,8 +162,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   );
 
   const lock = useCallback(() => {
+    setPassphraseRef((prev) => {
+      if (prev) prev.current = "";
+      return null;
+    });
     setVault(null);
-    setPassphraseRef(null);
+    setFileHandle(null);
+    setLastPayload(null);
   }, []);
 
   const updateVault = useCallback(
@@ -159,9 +176,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       if (!vault || !passphraseRef) return;
       const next = updater(vault);
       setVault(next);
-      await saveVault(passphraseRef.current, next);
+      await persistFile(next);
     },
-    [vault, passphraseRef]
+    [vault, passphraseRef, persistFile]
   );
 
   const getEntry = useCallback(
@@ -180,7 +197,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         entries: [...vault.entries, entry],
       };
       setVault(next);
-      saveVault(passphraseRef!.current, next).catch(() => {});
+      persistFile(next).catch((err) => {
+        console.error("Vault save failed", err);
+      });
       return entry;
     },
     [vault, passphraseRef]
@@ -212,7 +231,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         }),
       };
       setVault(next);
-      await saveVault(passphraseRef.current, next);
+      await persistFile(next);
       return fullEntry;
     },
     [vault, passphraseRef]
@@ -234,9 +253,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         }),
       };
       setVault(next);
-      await saveVault(passphraseRef.current, next);
+      await persistFile(next);
     },
-    [vault, passphraseRef]
+    [vault, passphraseRef, persistFile]
   );
 
   const deleteEntry = useCallback(
@@ -254,9 +273,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         }),
       };
       setVault(next);
-      await saveVault(passphraseRef.current, next);
+      await persistFile(next);
     },
-    [vault, passphraseRef]
+    [vault, passphraseRef, persistFile]
   );
 
   const categories = vault?.categories ?? [];
@@ -270,9 +289,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         categories: [...(vault.categories ?? []), { id, name: name.trim() }],
       };
       setVault(next);
-      await saveVault(passphraseRef.current, next);
+      await persistFile(next);
     },
-    [vault, passphraseRef]
+    [vault, passphraseRef, persistFile]
   );
 
   const renameCategory = useCallback(
@@ -283,9 +302,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       );
       const next = { ...vault, categories: cats };
       setVault(next);
-      await saveVault(passphraseRef.current, next);
+      await persistFile(next);
     },
-    [vault, passphraseRef]
+    [vault, passphraseRef, persistFile]
   );
 
   const deleteCategory = useCallback(
@@ -299,16 +318,35 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         categories: (vault.categories ?? []).filter((c) => c.id !== id),
       };
       setVault(next);
-      await saveVault(passphraseRef.current, next);
+      await persistFile(next);
       return { ok: true };
     },
-    [vault, passphraseRef]
+    [vault, passphraseRef, persistFile]
   );
 
   const exportVault = useCallback(async (): Promise<StoredEncryptedBlob | null> => {
     if (!vault || !passphraseRef) return null;
     return exportVaultEncrypted(passphraseRef.current, vault);
   }, [vault, passphraseRef]);
+
+  const saveCopyToHandle = useCallback(
+    async (handle: FileSystemFileHandle): Promise<{ ok: boolean; error?: string }> => {
+      if (!vault || !passphraseRef) return { ok: false, error: "Vault is locked." };
+      try {
+        const payload: DecryptedVaultPayload = {
+          current: vault,
+          versions: [],
+          versionHistoryLimit: vault.versionHistoryLimit ?? 10,
+        };
+        await writeVaultToHandle(handle, passphraseRef.current, payload);
+        return { ok: true };
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Save copy failed.";
+        return { ok: false, error: message };
+      }
+    },
+    [vault, passphraseRef]
+  );
 
   const importVault = useCallback(
     async (
@@ -322,7 +360,19 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           history: appendHistory(data.history, { action: "vault_imported" }),
         };
         setVault(withHistory);
-        await saveVault(passphraseRef.current, withHistory);
+        setLastPayload((prev) =>
+          prev
+            ? { ...prev, current: withHistory }
+            : { current: withHistory, versions: [], versionHistoryLimit: 10 }
+        );
+        if (fileHandle && passphraseRef) {
+          const nextPayload = buildPayloadForSave(
+            { current: withHistory, versions: [], versionHistoryLimit: 10 },
+            withHistory
+          );
+          await writeVaultToHandle(fileHandle, passphraseRef.current, nextPayload);
+          setLastPayload(nextPayload);
+        }
         return { ok: true };
       } catch (e) {
         const message =
@@ -330,17 +380,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, error: message };
       }
     },
-    [passphraseRef]
+    [passphraseRef, fileHandle]
   );
-
-  const registerPasskey = useCallback(async (): Promise<{
-    ok: boolean;
-    error?: string;
-  }> => {
-    if (!passphraseRef?.current)
-      return { ok: false, error: "Vault is locked." };
-    return registerPasskeyAuth(passphraseRef.current);
-  }, [passphraseRef]);
 
   const successorGuide = vault?.successorGuide ?? "";
   const updateSuccessorGuide = useCallback(
@@ -348,9 +389,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       if (!vault || !passphraseRef) return;
       const next = { ...vault, successorGuide: text };
       setVault(next);
-      await saveVault(passphraseRef.current, next);
+      await persistFile(next);
     },
-    [vault, passphraseRef]
+    [vault, passphraseRef, persistFile]
   );
 
   const userAka = vault?.userAka ?? "";
@@ -359,10 +400,48 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       if (!vault || !passphraseRef) return;
       const next = { ...vault, userAka: aka.trim() };
       setVault(next);
-      await saveVault(passphraseRef.current, next);
+      await persistFile(next);
     },
-    [vault, passphraseRef]
+    [vault, passphraseRef, persistFile]
   );
+
+  const versionHistoryLimit = vault?.versionHistoryLimit ?? 10;
+  const updateVersionHistoryLimit = useCallback(
+    async (limit: number) => {
+      if (!vault || !passphraseRef) return;
+      const n = Math.max(0, Math.min(100, Math.round(limit)));
+      const next = { ...vault, versionHistoryLimit: n };
+      setVault(next);
+      await persistFile(next);
+    },
+    [vault, passphraseRef, persistFile]
+  );
+
+  const versionSnapshots = lastPayload?.versions ?? [];
+
+  const restoreVersion = useCallback(
+    async (index: number) => {
+      if (!vault || !passphraseRef || !lastPayload) return;
+      const snapshots = lastPayload.versions;
+      if (index < 0 || index >= snapshots.length) return;
+      const restored = snapshots[index];
+      if (!restored) return;
+      setVault(restored);
+      await persistFile(restored);
+    },
+    [vault, passphraseRef, lastPayload, persistFile]
+  );
+
+  const estimatedVaultSizeBytes = useMemo(() => {
+    if (!vault || !lastPayload) return null;
+    try {
+      const nextPayload = buildPayloadForSave(lastPayload, vault);
+      const json = JSON.stringify(nextPayload);
+      return new Blob([json]).size;
+    } catch {
+      return null;
+    }
+  }, [vault, lastPayload]);
 
   const history = vault?.history ?? [];
   const uploadedKeys = vault?.uploadedKeys ?? [];
@@ -383,9 +462,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         uploadedKeys: [...(vault.uploadedKeys ?? []), key],
       };
       setVault(next);
-      await saveVault(passphraseRef.current, next);
+      await persistFile(next);
     },
-    [vault, passphraseRef]
+    [vault, passphraseRef, persistFile]
   );
 
   const deleteUploadedKey = useCallback(
@@ -396,9 +475,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         uploadedKeys: (vault.uploadedKeys ?? []).filter((k) => k.id !== id),
       };
       setVault(next);
-      await saveVault(passphraseRef.current, next);
+      await persistFile(next);
     },
-    [vault, passphraseRef]
+    [vault, passphraseRef, persistFile]
   );
 
   const getUploadedKey = useCallback(
@@ -413,9 +492,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       isUnlocked,
       vault,
       hasExistingStore,
-      unlock,
       lock,
-      createNewStore,
+      createNewStoreWithHandle,
       importExistingStore,
       updateVault,
       getEntry,
@@ -428,12 +506,17 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       renameCategory,
       deleteCategory,
       exportVault,
+      saveCopyToHandle,
       importVault,
-      registerPasskey,
       successorGuide,
       updateSuccessorGuide,
       userAka,
       updateUserAka,
+      versionHistoryLimit,
+      updateVersionHistoryLimit,
+      versionSnapshots,
+      restoreVersion,
+      estimatedVaultSizeBytes,
       history,
       uploadedKeys,
       addUploadedKey,
@@ -444,9 +527,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       isUnlocked,
       vault,
       hasExistingStore,
-      unlock,
       lock,
-      createNewStore,
+      createNewStoreWithHandle,
       importExistingStore,
       updateVault,
       getEntry,
@@ -459,12 +541,17 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       renameCategory,
       deleteCategory,
       exportVault,
+      saveCopyToHandle,
       importVault,
-      registerPasskey,
       successorGuide,
       updateSuccessorGuide,
       userAka,
       updateUserAka,
+      versionHistoryLimit,
+      updateVersionHistoryLimit,
+      versionSnapshots,
+      restoreVersion,
+      estimatedVaultSizeBytes,
       history,
       uploadedKeys,
       addUploadedKey,

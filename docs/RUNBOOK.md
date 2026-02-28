@@ -49,15 +49,14 @@ try_files {path} /index.html
 
 ## Data and storage
 
-- **No server-side storage.** All vault data is in the **browser** (IndexedDB) on the client.
+- **No server-side storage.** All vault data is in a **vault file** that the user opens or creates in the browser. The app does not store the vault on the server; the file lives on the user’s device (or wherever they save it).
 - **Encryption:** AES-GCM; key is derived from the user’s passphrase and never sent or stored.
-- **Export:** Users can download an encrypted JSON backup from the app.
-- **IndexedDB limits:** Browsers typically allow hundreds of MB per origin; export is available if users need to move data.
+- **Export / backup:** Users can "Save a copy as…" (save picker) or "Download backup" to get an encrypted JSON file. They can "Open another vault" to replace the current vault with another file.
 
 ## Browser support
 
-- Modern browsers with Web Crypto API and IndexedDB (Chrome, Firefox, Edge, Safari).
-- Passkeys require WebAuthn and PRF support (e.g. Chrome, recent Edge).
+- Modern browsers with Web Crypto API (Chrome, Firefox, Edge, Safari).
+- File System Access API is used when available (e.g. Chrome, Edge) for "Save a copy as…" and choosing where to save new vaults; otherwise the app falls back to file input and download.
 
 ## No telemetry
 

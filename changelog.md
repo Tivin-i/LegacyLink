@@ -4,7 +4,45 @@ All notable changes to LegacyLink are documented here.
 
 ## [Unreleased]
 
+## [0.1.1] – 2026-02-28
+
+### Security
+
+- **Base64 and large vaults:** Encoding uses chunked processing so large ciphertext (e.g. big exports) no longer hits engine argument limits or causes RangeError.
+- **Vault file size limit:** Import and open reject vault files larger than 50 MB to prevent memory exhaustion (constant `MAX_VAULT_FILE_BYTES` in `src/crypto/constants.ts`).
+- **Passphrase retention:** Passphrase is cleared in UnlockPage state after successful unlock and overwritten in VaultContext on lock to reduce time in memory.
+- **Decrypt error uniformity:** Wrong passphrase and invalid/corrupt vault format now throw the same generic error message to avoid timing-based information leakage.
+
+### Fixed
+
+- **Save failure visibility:** `addEntry` now logs vault save failures to the console instead of failing silently.
+
 ### Added
+
+- **Optional: Vault file UX and version restore**
+  - **Save a copy as…:** Export/Import page (now titled "Vault file") uses "Save a copy as…" with File System Access API save picker when available; fallback to "Download backup". Section "Open another vault" replaces current vault with another file.
+  - **Version restore:** Settings shows "History of versions" when version history exists; user can restore a past snapshot (it becomes current and is saved).
+  - **File size indicator:** Settings shows approximate vault file size (~X KB) under "Versions to keep".
+
+### Changed
+
+- **Documentation updated** to reflect file-based vault and removal of passkey/IndexedDB: README.md, docs/ARCHITECTURE.md, docs/ARCHITECTURE-REVIEW.md, docs/HANDOVER.md, docs/RUNBOOK.md. Handover guide now describes opening the vault file and decryption key only; no passkey. Runbook describes file-based storage and browser support (File System Access API with fallback).
+- **README:** Added warning to not expose LegacyLink to the internet; run only on localhost or a private/local network.
+
+## [0.1.0] – 2026-02-28
+
+### Added
+
+- **File-based vault and index flow (Phase 4)**
+  - **Passkey and IndexedDB removed:** Passkey support and `src/auth/passkey.ts` removed (passkey required cleartext meta outside the encrypted blob). IndexedDB layer removed: `src/storage/db.ts` deleted; all persistence is file-based via `file-vault-storage.ts`. Deprecated vault-service functions `unlockVault`, `saveVault`, `createAndSaveEmptyVault` removed. Export/Import page no longer shows passkey section; intro copy updated to "Backup your vault or replace it with a previously exported file." Dependency `idb` removed from package.json.
+
+- **File-based vault and index flow (Phases 1–3)**
+  - **Index flow:** App always opens to a choice screen: **Import vault** or **Create a new one**. No local store is loaded on startup; user must import a vault file or create a new one and choose where to save it (File System Access API `showSaveFilePicker` / `showOpenFilePicker`, with file input fallback for import).
+  - **Single vault file:** All data is stored in one encrypted file. File format is a single `StoredEncryptedBlob`; plaintext payload is `{ format: 2, current, versions, versionHistoryLimit }`. Legacy single-VaultData export files are supported (treated as `{ current, versions: [], versionHistoryLimit: 10 }` on first open).
+  - **File storage layer:** [src/storage/file-vault-storage.ts](src/storage/file-vault-storage.ts): `readVaultFromFile`, `readVaultFromHandle`, `writeVaultToHandle`, `buildPayloadForSave` (push previous current into versions and trim to limit). [src/crypto/vault-crypto.ts](src/crypto/vault-crypto.ts): `encryptPayload` / `decryptPayload` for full payload.
+  - **Version history:** Each save pushes the previous state into a `versions` array and trims to a configurable limit. [VaultData](src/vault-types.ts) and payload include `versionHistoryLimit` (default 10).
+  - **Settings – Vault file:** Settings page has a **Vault file** section: **Versions to keep** (0–100) with a warning that more versions increase file size. Value is stored in the encrypted payload only.
+  - **Types:** [DecryptedVaultPayload](src/vault-types.ts); [src/types/file-system-access.d.ts](src/types/file-system-access.d.ts) for `showSaveFilePicker` / `showOpenFilePicker` and handle types.
 
 - **Versioning**
   - Project version in `package.json` (current 0.0.2). Scripts: `npm run version:patch`, `version:minor`, `version:major` (bump version, update changelog; script prints git tag and push commands). GitHub Actions **Release** workflow creates a GitHub Release when a `v*` tag is pushed. Cursor rule `.cursor/rules/versioning.mdc` for maintaining and bumping versions with every update (semver: patch = fixes/docs, minor = features, major = breaking).
@@ -65,25 +103,26 @@ All notable changes to LegacyLink are documented here.
 
 ### Changed (refactor / cleanup)
 
+- **Vault persistence:** All saves go through the file-based layer when a vault file handle is present (`persistFile` → `buildPayloadForSave` + `writeVaultToHandle`). VaultContext holds `fileHandle` and `lastPayload`; `createNewStoreWithHandle(handle, passphrase)` and `importExistingStore(file, passphrase, handle?)` replace the previous create/unlock-from-db flow. Index no longer checks IndexedDB on load (`hasExistingStore` is always `false`). **Phase 4:** db.ts and passkey removed; vault-service `unlockVault`, `saveVault`, `createAndSaveEmptyVault` removed.
+- **Unlock page:** Entry is choice-only (Import vault / Create a new one). Create flow uses save picker then create-key form; import uses open picker or file input then passphrase form. Passkey unlock and registration were removed in Phase 4.
 - **Shared crypto**: `validateStoredEncryptedBlob(value)` and `readStoredBlobFromFile(file)` in `vault-crypto.ts`; UnlockPage and ExportImportPage use them for consistent file validation.
 - **Shared styles**: `forms.formColumn`, `forms.formActionsRow`, `forms.fileInputHidden`, `forms.labelBlock` in `shared.ts`; UnlockPage and ExportImportPage use them.
-- **Passkey hook**: `usePasskeyAvailable()` in `hooks/usePasskeyAvailable.ts`; UnlockPage and ExportImportPage use it instead of duplicating the supported+configured effect.
 - **TemplateForm**: `onSave` is optional; callers can omit it. Error-state “Back to list” uses `links.back` on EntryDetailPage and NewEntryPage.
 - **EntryDetailPage**: Section headings use `typography.h2`. Comments added for `addEntry` (VaultContext) and `getAllTemplates` (templates).
 - **TypeScript**: `tsconfig` includes `@testing-library/jest-dom/vitest` so test matchers type-check.
 
 ### Testing
 
-- **vault-service** (`src/vault/vault-service.test.ts`): Tests for `unlockVault` (no store, with store, wrong key), `saveVault`, `createAndSaveEmptyVault`, `importVaultFromBlob`, `createEmptyEntry`. Storage layer mocked with in-memory blob.
-- **VaultContext** (`src/context/VaultContext.test.tsx`): Tests for `hasExistingStore`, `createNewStore`, `createEntry` + `getEntry`, and `unlock` when store exists. Includes cleanup to avoid duplicate DOM across tests.
-- **UnlockPage** (`src/pages/UnlockPage.test.tsx`): Tests for no-store choice (Create new / Open existing), create-key form, creating store with matching keys and navigation, unlock form when store exists, unlock with correct key and navigation.
+- **VaultContext** (`src/context/VaultContext.test.tsx`): Updated to use `createNewStoreWithHandle(mockHandle, "key1")` and mocked `file-vault-storage`; removed tests that relied on db-based unlock.
+- **UnlockPage** (`src/pages/UnlockPage.test.tsx`): Updated for choice-only flow; tests for "Import vault" / "Create a new one", create flow with mocked `showSaveFilePicker`, and create vault with matching keys and navigation. Removed tests for "store exists" unlock form (no longer applicable).
+- **vault-service** (`src/vault/vault-service.test.ts`): Tests for `importVaultFromBlob` and `createEmptyEntry` only (db-based unlock/save/create removed with Phase 4).
 - **NewEntryPage** (`src/pages/NewEntryPage.test.tsx`): Smoke tests that page renders with "New entry" and Create button and uses `createEntry` from context.
 
 ### Changed
 
 - **Refactor (architecture)**
-  - Shared base64 encoding/decoding in `src/utils/base64.ts`; `vault-crypto` and `auth/passkey` now use it (removed duplication).
-  - Vault context no longer exposes `passphraseRef`. New methods: `exportVault()`, `importVault(stored)`, `registerPasskey()` so export/import/passkey registration use the vault layer only.
+  - Shared base64 encoding/decoding in `src/utils/base64.ts`; `vault-crypto` uses it.
+  - Vault context exposes `exportVault()`, `importVault(stored)`; `registerPasskey` removed in Phase 4.
   - Shared UI styles in `src/styles/shared.ts`; pages and `TemplateForm` use shared layout, links, typography, buttons, forms, and messages for consistency and DRY.
 
 - **Repository**

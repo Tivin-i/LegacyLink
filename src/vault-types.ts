@@ -45,6 +45,21 @@ export interface VaultData {
   uploadedKeys?: UploadedKey[];
   /** User's AKA nickname (e.g. for "Author" display). Optional. */
   userAka?: string;
+  /** Max number of version snapshots to keep in file. Stored in encrypted payload. Default 10. */
+  versionHistoryLimit?: number;
+}
+
+/**
+ * Decrypted payload of the vault file (format 2).
+ * The entire file is encrypted as one blob; this is the plaintext structure.
+ */
+export interface DecryptedVaultPayload {
+  /** Current vault state. */
+  current: VaultData;
+  /** Past snapshots (newest first). Trimmed to versionHistoryLimit on save. */
+  versions: VaultData[];
+  /** Max number of versions to keep. Stored in encrypted payload only. */
+  versionHistoryLimit: number;
 }
 
 export interface Entry {

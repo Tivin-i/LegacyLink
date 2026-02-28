@@ -5,26 +5,33 @@ import { render, screen, waitFor, fireEvent, cleanup } from "@testing-library/re
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { VaultProvider } from "../context/VaultContext";
 import { UnlockPage } from "./UnlockPage";
-import type { StoredEncryptedBlob } from "../crypto/vault-crypto";
 
-const store = vi.hoisted(() => ({ blob: null as StoredEncryptedBlob | null }));
+function createMockHandle(): FileSystemFileHandle {
+  return {
+    kind: "file",
+    name: "vault.json",
+    getFile: () => Promise.resolve(new File([], "vault.json")),
+    createWritable: () =>
+      Promise.resolve({
+        write: () => Promise.resolve(),
+        close: () => Promise.resolve(),
+        seek: () => Promise.resolve(),
+        truncate: () => Promise.resolve(),
+      } as unknown as FileSystemWritableFileStream),
+    isSameEntry: () => Promise.resolve(false),
+  } as FileSystemFileHandle;
+}
 
-vi.mock("../storage/db", () => ({
-  readVaultBlob: () => Promise.resolve(store.blob),
-  writeVaultBlob: (b: StoredEncryptedBlob) => {
-    store.blob = b;
-    return Promise.resolve();
-  },
-  clearVault: () => {
-    store.blob = null;
-    return Promise.resolve();
-  },
-}));
+const mockHandle = createMockHandle();
 
-vi.mock("../auth/passkey", () => ({
-  isPasskeySupported: () => false,
-  isPasskeyConfigured: () => Promise.resolve(false),
-  authenticateWithPasskey: () => Promise.resolve({ ok: false, error: "not supported" }),
+vi.mock("../storage/file-vault-storage", () => ({
+  readVaultFromFile: vi.fn(),
+  writeVaultToHandle: vi.fn(() => Promise.resolve()),
+  buildPayloadForSave: vi.fn((_prev: unknown, newCurrent: unknown) => ({
+    current: newCurrent,
+    versions: [],
+    versionHistoryLimit: 10,
+  })),
 }));
 
 function App() {
@@ -42,39 +49,50 @@ function App() {
 
 describe("UnlockPage", () => {
   beforeEach(() => {
-    store.blob = null;
+    if (typeof window.showSaveFilePicker === "function") {
+      vi.mocked(window.showSaveFilePicker).mockReset();
+    }
+    if (typeof window.showOpenFilePicker === "function") {
+      vi.mocked(window.showOpenFilePicker).mockReset();
+    }
   });
   afterEach(() => {
     cleanup();
   });
 
-  it("when no store exists shows choice: Create new Store and Open existing Store", async () => {
+  it("shows choice: Import vault and Create a new one", async () => {
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByText(/create a new legacylink store/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /import vault/i })).toBeInTheDocument();
     });
-    expect(screen.getByText(/open existing legacylink store/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /create a new one/i })).toBeInTheDocument();
   });
 
-  it("when no store, clicking Create new Store shows create-key form", async () => {
+  it("clicking Create a new one opens save picker then shows create-key form", async () => {
+    (window as unknown as { showSaveFilePicker: () => Promise<FileSystemFileHandle> }).showSaveFilePicker = vi
+      .fn()
+      .mockResolvedValue(mockHandle);
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /create a new legacylink store/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /create a new one/i })).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByRole("button", { name: /create a new legacylink store/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create a new one/i }));
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Decryption key…")).toBeInTheDocument();
     });
     expect(screen.getByPlaceholderText("Confirm decryption key…")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /create store/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /create vault/i })).toBeInTheDocument();
   });
 
-  it("creating new store with matching keys unlocks and navigates to entries", async () => {
+  it("creating new vault with matching keys unlocks and navigates to entries", async () => {
+    (window as unknown as { showSaveFilePicker: () => Promise<FileSystemFileHandle> }).showSaveFilePicker = vi
+      .fn()
+      .mockResolvedValue(mockHandle);
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /create a new legacylink store/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /create a new one/i })).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByRole("button", { name: /create a new legacylink store/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create a new one/i }));
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Decryption key…")).toBeInTheDocument();
     });
@@ -82,33 +100,7 @@ describe("UnlockPage", () => {
     const confirmInput = screen.getByPlaceholderText("Confirm decryption key…");
     fireEvent.change(keyInput, { target: { value: "my-secret-key" } });
     fireEvent.change(confirmInput, { target: { value: "my-secret-key" } });
-    fireEvent.click(screen.getByRole("button", { name: /create store/i }));
-    await waitFor(() => {
-      expect(screen.getByTestId("entries-page")).toBeInTheDocument();
-    });
-  });
-
-  it("when store exists shows unlock form", async () => {
-    const { createAndSaveEmptyVault } = await import("../vault/vault-service");
-    await createAndSaveEmptyVault("key1");
-    render(<App />);
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText(/decryption key/i)).toBeInTheDocument();
-    });
-    expect(screen.getByRole("button", { name: /unlock/i })).toBeInTheDocument();
-  });
-
-  it("unlock with correct key navigates to entries", async () => {
-    const { createAndSaveEmptyVault } = await import("../vault/vault-service");
-    await createAndSaveEmptyVault("key1");
-    render(<App />);
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText(/decryption key/i)).toBeInTheDocument();
-    });
-    fireEvent.change(screen.getByPlaceholderText(/decryption key/i), {
-      target: { value: "key1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /unlock/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create vault/i }));
     await waitFor(() => {
       expect(screen.getByTestId("entries-page")).toBeInTheDocument();
     });
