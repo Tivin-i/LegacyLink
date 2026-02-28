@@ -4,6 +4,7 @@ import { useVault } from "../context/VaultContext";
 import { getTemplate } from "../templates";
 import { TemplateForm } from "../components/TemplateForm";
 import type { SectionData } from "../vault-types";
+import { layout, links, typography, buttons } from "../styles/shared";
 
 export function EntryDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -14,9 +15,9 @@ export function EntryDetailPage() {
 
   if (!entry) {
     return (
-      <main style={styles.main}>
+      <main style={layout.main}>
         <p>Entry not found.</p>
-        <Link to="/entries">Back to list</Link>
+        <Link to="/entries" style={links.back}>Back to list</Link>
       </main>
     );
   }
@@ -24,9 +25,9 @@ export function EntryDetailPage() {
   const template = getTemplate(entry.templateId);
   if (!template) {
     return (
-      <main style={styles.main}>
+      <main style={layout.main}>
         <p>Template not found.</p>
-        <Link to="/entries">Back to list</Link>
+        <Link to="/entries" style={links.back}>Back to list</Link>
       </main>
     );
   }
@@ -47,10 +48,25 @@ export function EntryDetailPage() {
     navigate("/entries", { replace: true });
   };
 
+  const headerStyle: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "1rem",
+    flexWrap: "wrap",
+    gap: "0.5rem",
+  };
+  const sectionStyle: React.CSSProperties = {
+    marginBottom: "1.5rem",
+    padding: "1rem",
+    border: "1px solid #eee",
+    borderRadius: "6px",
+  };
+
   if (editing) {
     return (
-      <main style={styles.main}>
-        <Link to="/entries" style={styles.back}>
+      <main style={layout.main}>
+        <Link to="/entries" style={links.back}>
           Back to list
         </Link>
         <TemplateForm
@@ -58,7 +74,6 @@ export function EntryDetailPage() {
           entry={entry}
           onUpdate={(sections, title) => handleUpdate(sections, title)}
           onCancel={() => setEditing(false)}
-          onSave={() => {}}
           saveLabel="Save"
         />
       </main>
@@ -66,38 +81,40 @@ export function EntryDetailPage() {
   }
 
   return (
-    <main style={styles.main}>
-      <div style={styles.header}>
-        <Link to="/entries" style={styles.back}>
+    <main style={layout.main}>
+      <div style={headerStyle}>
+        <Link to="/entries" style={links.back}>
           Back to list
         </Link>
-        <div style={styles.actions}>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
           <button
             type="button"
             onClick={() => setEditing(true)}
-            style={styles.button}
+            style={buttons.primary}
           >
             Edit
           </button>
           <button
             type="button"
             onClick={handleDelete}
-            style={styles.deleteButton}
+            style={buttons.danger}
             aria-label="Delete entry"
           >
             Delete
           </button>
         </div>
       </div>
-      <h1 style={styles.title}>{entry.title}</h1>
-      <p style={styles.meta}>
+      <h1 style={typography.titleSmall}>{entry.title}</h1>
+      <p style={typography.meta}>
         {template.name} · Updated{" "}
         {new Date(entry.updatedAt).toLocaleString()}
       </p>
       {template.sections.map((section) => (
-        <section key={section.id} style={styles.section}>
-          <h2 style={styles.sectionTitle}>{section.label}</h2>
-          <dl style={styles.dl}>
+        <section key={section.id} style={sectionStyle}>
+          <h2 style={typography.h2}>
+            {section.label}
+          </h2>
+          <dl style={{ margin: 0 }}>
             {section.fields.map((field) => {
               const value = entry.sections[section.id]?.[field.id];
               const display =
@@ -105,9 +122,11 @@ export function EntryDetailPage() {
                   ? String(value)
                   : "—";
               return (
-                <div key={field.id} style={styles.row}>
-                  <dt style={styles.dt}>{field.label}</dt>
-                  <dd style={styles.dd}>
+                <div key={field.id} style={{ marginTop: "0.5rem" }}>
+                  <dt style={{ margin: 0, fontSize: "0.875rem", color: "#666" }}>
+                    {field.label}
+                  </dt>
+                  <dd style={{ margin: "0.25rem 0 0", fontSize: "1rem" }}>
                     {field.type === "password" ? "••••••••" : display}
                   </dd>
                 </div>
@@ -119,78 +138,3 @@ export function EntryDetailPage() {
     </main>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  main: {
-    maxWidth: "720px",
-    margin: "0 auto",
-    padding: "1.5rem 1rem",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "1rem",
-    flexWrap: "wrap",
-    gap: "0.5rem",
-  },
-  back: {
-    color: "#2563eb",
-    textDecoration: "none",
-  },
-  actions: {
-    display: "flex",
-    gap: "0.5rem",
-  },
-  button: {
-    padding: "0.5rem 0.75rem",
-    background: "#2563eb",
-    color: "#fff",
-    border: "none",
-    borderRadius: "6px",
-    cursor: "pointer",
-  },
-  deleteButton: {
-    padding: "0.5rem 0.75rem",
-    background: "transparent",
-    color: "#b91c1c",
-    border: "1px solid #b91c1c",
-    borderRadius: "6px",
-    cursor: "pointer",
-  },
-  title: {
-    margin: "0 0 0.25rem",
-    fontSize: "1.5rem",
-  },
-  meta: {
-    margin: "0 0 1.5rem",
-    color: "#666",
-    fontSize: "0.9375rem",
-  },
-  section: {
-    marginBottom: "1.5rem",
-    padding: "1rem",
-    border: "1px solid #eee",
-    borderRadius: "6px",
-  },
-  sectionTitle: {
-    margin: "0 0 0.75rem",
-    fontSize: "1.125rem",
-    fontWeight: 600,
-  },
-  dl: {
-    margin: 0,
-  },
-  row: {
-    marginTop: "0.5rem",
-  },
-  dt: {
-    margin: 0,
-    fontSize: "0.875rem",
-    color: "#666",
-  },
-  dd: {
-    margin: "0.25rem 0 0",
-    fontSize: "1rem",
-  },
-};

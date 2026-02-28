@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useVault } from "../context/VaultContext";
 import { getTemplate } from "../templates";
+import { layout, links, typography, buttons } from "../styles/shared";
 
 export function EntryListPage() {
   const { vault, lock } = useVault();
@@ -13,21 +14,51 @@ export function EntryListPage() {
     navigate("/", { replace: true });
   };
 
+  const headerStyle: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "1.5rem",
+    flexWrap: "wrap",
+    gap: "0.75rem",
+  };
+  const navStyle: React.CSSProperties = {
+    display: "flex",
+    gap: "0.75rem",
+    alignItems: "center",
+  };
+  const emptyStyle: React.CSSProperties = {
+    padding: "2rem",
+    textAlign: "center",
+    color: "#666",
+  };
+  const listStyle: React.CSSProperties = {
+    listStyle: "none",
+    margin: 0,
+    padding: 0,
+  };
+  const entryLinkStyle: React.CSSProperties = {
+    display: "block",
+    padding: "1rem 0",
+    color: "inherit",
+    textDecoration: "none",
+  };
+
   return (
-    <main style={styles.main}>
-      <header style={styles.header}>
-        <h1 style={styles.title}>Entries</h1>
-        <nav style={styles.nav} aria-label="Actions">
-          <Link to="/entries/new" style={styles.link}>
+    <main style={layout.main}>
+      <header style={headerStyle}>
+        <h1 style={typography.title}>Entries</h1>
+        <nav style={navStyle} aria-label="Actions">
+          <Link to="/entries/new" style={links.primary}>
             Add entry
           </Link>
-          <Link to="/export-import" style={styles.link}>
+          <Link to="/export-import" style={links.primary}>
             Export / Import
           </Link>
           <button
             type="button"
             onClick={handleLock}
-            style={styles.lockButton}
+            style={buttons.secondary}
             aria-label="Lock vault"
           >
             Lock
@@ -35,28 +66,30 @@ export function EntryListPage() {
         </nav>
       </header>
       {entries.length === 0 ? (
-        <section style={styles.empty} aria-label="Empty state">
+        <section style={emptyStyle} aria-label="Empty state">
           <p>No entries yet.</p>
-          <Link to="/entries/new" style={styles.primaryLink}>
+          <Link to="/entries/new" style={links.primaryWithMargin}>
             Create your first entry
           </Link>
         </section>
       ) : (
-        <ul style={styles.list}>
+        <ul style={listStyle}>
           {entries.map((entry) => {
             const template = getTemplate(entry.templateId);
             return (
-              <li key={entry.id} style={styles.item}>
+              <li key={entry.id} style={{ borderBottom: "1px solid #eee" }}>
                 <Link
                   to={`/entries/${entry.id}`}
-                  style={styles.entryLink}
+                  style={entryLinkStyle}
                   aria-label={`Open ${entry.title}`}
                 >
-                  <span style={styles.entryTitle}>{entry.title}</span>
+                  <span style={{ display: "block", fontWeight: 500 }}>{entry.title}</span>
                   {template && (
-                    <span style={styles.entryMeta}>{template.name}</span>
+                    <span style={{ fontSize: "0.875rem", color: "#666" }}>
+                      {template.name}
+                    </span>
                   )}
-                  <span style={styles.entryDate}>
+                  <span style={{ fontSize: "0.8125rem", color: "#999" }}>
                     {new Date(entry.updatedAt).toLocaleDateString()}
                   </span>
                 </Link>
@@ -68,80 +101,3 @@ export function EntryListPage() {
     </main>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  main: {
-    maxWidth: "720px",
-    margin: "0 auto",
-    padding: "1.5rem 1rem",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "1.5rem",
-    flexWrap: "wrap",
-    gap: "0.75rem",
-  },
-  title: {
-    margin: 0,
-    fontSize: "1.5rem",
-    fontWeight: 600,
-  },
-  nav: {
-    display: "flex",
-    gap: "0.75rem",
-    alignItems: "center",
-  },
-  link: {
-    color: "#2563eb",
-    textDecoration: "none",
-    fontWeight: 500,
-  },
-  primaryLink: {
-    color: "#2563eb",
-    textDecoration: "none",
-    fontWeight: 500,
-    marginTop: "0.5rem",
-    display: "inline-block",
-  },
-  lockButton: {
-    padding: "0.5rem 0.75rem",
-    background: "transparent",
-    border: "1px solid #ccc",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontSize: "0.9375rem",
-  },
-  empty: {
-    padding: "2rem",
-    textAlign: "center",
-    color: "#666",
-  },
-  list: {
-    listStyle: "none",
-    margin: 0,
-    padding: 0,
-  },
-  item: {
-    borderBottom: "1px solid #eee",
-  },
-  entryLink: {
-    display: "block",
-    padding: "1rem 0",
-    color: "inherit",
-    textDecoration: "none",
-  },
-  entryTitle: {
-    display: "block",
-    fontWeight: 500,
-  },
-  entryMeta: {
-    fontSize: "0.875rem",
-    color: "#666",
-  },
-  entryDate: {
-    fontSize: "0.8125rem",
-    color: "#999",
-  },
-};

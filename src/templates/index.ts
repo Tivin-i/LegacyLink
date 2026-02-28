@@ -7,6 +7,7 @@ export function getTemplate(id: string): Template | undefined {
   return templates.find((t) => t.id === id);
 }
 
+/** All templates (for future template picker UI). */
 export function getAllTemplates(): Template[] {
   return [...templates];
 }

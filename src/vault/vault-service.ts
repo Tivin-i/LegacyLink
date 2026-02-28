@@ -32,6 +32,13 @@ export async function saveVault(
 }
 
 /**
+ * Create a new empty store and persist it encrypted with the given passphrase.
+ */
+export async function createAndSaveEmptyVault(passphrase: string): Promise<void> {
+  await saveVault(passphrase, { ...DEFAULT_VAULT, entries: [] });
+}
+
+/**
  * Export vault as encrypted blob (for file download).
  */
 export async function exportVaultEncrypted(

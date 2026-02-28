@@ -1,33 +1,27 @@
-import React from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useVault } from "../context/VaultContext";
 import { getTemplate, LEGACY_SYSTEM_TEMPLATE_ID } from "../templates";
 import { TemplateForm } from "../components/TemplateForm";
 import type { SectionData } from "../vault-types";
+import { layout, links, typography } from "../styles/shared";
 
 export function NewEntryPage() {
   const navigate = useNavigate();
-  const { addEntry, updateEntry } = useVault();
+  const { createEntry } = useVault();
   const template = getTemplate(LEGACY_SYSTEM_TEMPLATE_ID);
 
   if (!template) {
     return (
-      <main style={styles.main}>
+      <main style={layout.main}>
         <p>Template not found.</p>
-        <Link to="/entries">Back to list</Link>
+        <Link to="/entries" style={links.back}>Back to list</Link>
       </main>
     );
   }
 
   const handleCreate = async (sections: Record<string, SectionData>, title: string) => {
-    const entry = addEntry(LEGACY_SYSTEM_TEMPLATE_ID, title);
-    await updateEntry(entry.id, (e) => ({
-      ...e,
-      title,
-      sections,
-      updatedAt: new Date().toISOString(),
-    }));
-    navigate(`/entries/${entry.id}`, { replace: true });
+    const entry = await createEntry(LEGACY_SYSTEM_TEMPLATE_ID, title, sections);
+    if (entry) navigate(`/entries/${entry.id}`, { replace: true });
   };
 
   const entry = {
@@ -39,11 +33,11 @@ export function NewEntryPage() {
   };
 
   return (
-    <main style={styles.main}>
-      <Link to="/entries" style={styles.back}>
+    <main style={layout.main}>
+      <Link to="/entries" style={links.back}>
         Back to list
       </Link>
-      <h1 style={styles.title}>New entry</h1>
+      <h1 style={typography.title}>New entry</h1>
       <TemplateForm
         template={template}
         entry={entry}
@@ -51,27 +45,8 @@ export function NewEntryPage() {
           await handleCreate(sections, title);
         }}
         onCancel={() => navigate("/entries")}
-        onSave={() => {}}
         saveLabel="Create"
       />
     </main>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  main: {
-    maxWidth: "720px",
-    margin: "0 auto",
-    padding: "1.5rem 1rem",
-  },
-  back: {
-    color: "#2563eb",
-    textDecoration: "none",
-    display: "inline-block",
-    marginBottom: "1rem",
-  },
-  title: {
-    margin: "0 0 1rem",
-    fontSize: "1.5rem",
-  },
-};

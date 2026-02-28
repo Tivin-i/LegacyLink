@@ -1,12 +1,14 @@
 import React from "react";
 import type { Template, Entry, SectionData } from "../vault-types";
+import { forms } from "../styles/shared";
 
 interface TemplateFormProps {
   template: Template;
   entry: Entry;
   onUpdate: (sections: Record<string, SectionData>, title: string) => void | Promise<void>;
   onCancel: () => void;
-  onSave: () => void;
+  /** Called after onUpdate completes (e.g. for analytics). Optional. */
+  onSave?: () => void;
   saveLabel?: string;
 }
 
@@ -36,12 +38,12 @@ export function TemplateForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await onUpdate(sections, title);
-    onSave();
+    onSave?.();
   };
 
   return (
     <form onSubmit={handleSubmit}>
-      <div style={styles.titleRow}>
+      <div style={{ marginBottom: "1.5rem" }}>
         <label htmlFor="entry-title">Title</label>
         <input
           id="entry-title"
@@ -50,18 +52,18 @@ export function TemplateForm({
           onChange={(e) => setTitle(e.target.value)}
           required
           placeholder="Entry title…"
-          style={styles.titleInput}
+          style={forms.titleInput}
         />
       </div>
       {template.sections.map((section) => (
-        <fieldset key={section.id} style={styles.section}>
-          <legend style={styles.legend}>{section.label}</legend>
+        <fieldset key={section.id} style={forms.fieldset}>
+          <legend style={forms.legend}>{section.label}</legend>
           {section.fields.map((field) => {
             const raw = sections[section.id]?.[field.id];
             const valueStr =
               raw !== undefined && raw !== null ? String(raw) : "";
             return (
-              <div key={field.id} style={styles.field}>
+              <div key={field.id} style={forms.field}>
                 <label htmlFor={`${section.id}-${field.id}`}>
                   {field.label}
                   {field.required && " *"}
@@ -76,7 +78,7 @@ export function TemplateForm({
                     required={field.required}
                     placeholder={field.placeholder ?? "…"}
                     rows={3}
-                    style={styles.textarea}
+                    style={forms.textarea}
                   />
                 ) : (
                   <input
@@ -107,7 +109,7 @@ export function TemplateForm({
                     required={field.required}
                     placeholder={field.placeholder ?? "…"}
                     autoComplete={field.type === "password" ? "off" : undefined}
-                    style={styles.input}
+                    style={forms.input}
                   />
                 )}
               </div>
@@ -115,83 +117,14 @@ export function TemplateForm({
           })}
         </fieldset>
       ))}
-      <div style={styles.actions}>
-        <button type="button" onClick={onCancel} style={styles.cancelBtn}>
+      <div style={forms.actions}>
+        <button type="button" onClick={onCancel} style={forms.cancel}>
           Cancel
         </button>
-        <button type="submit" style={styles.saveBtn}>
+        <button type="submit" style={forms.submit}>
           {saveLabel}
         </button>
       </div>
     </form>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  titleRow: {
-    marginBottom: "1.5rem",
-  },
-  titleInput: {
-    display: "block",
-    width: "100%",
-    padding: "0.75rem",
-    border: "1px solid #ccc",
-    borderRadius: "6px",
-    fontSize: "1rem",
-    marginTop: "0.25rem",
-  },
-  section: {
-    marginBottom: "1.5rem",
-    padding: "1rem",
-    border: "1px solid #eee",
-    borderRadius: "6px",
-  },
-  legend: {
-    padding: "0 0.5rem",
-    fontWeight: 600,
-  },
-  field: {
-    marginTop: "0.75rem",
-  },
-  input: {
-    display: "block",
-    width: "100%",
-    padding: "0.5rem 0.75rem",
-    border: "1px solid #ccc",
-    borderRadius: "6px",
-    fontSize: "1rem",
-    marginTop: "0.25rem",
-  },
-  textarea: {
-    display: "block",
-    width: "100%",
-    padding: "0.5rem 0.75rem",
-    border: "1px solid #ccc",
-    borderRadius: "6px",
-    fontSize: "1rem",
-    marginTop: "0.25rem",
-    resize: "vertical",
-    minHeight: "4rem",
-  },
-  actions: {
-    display: "flex",
-    gap: "0.75rem",
-    marginTop: "1.5rem",
-  },
-  cancelBtn: {
-    padding: "0.5rem 1rem",
-    background: "transparent",
-    border: "1px solid #ccc",
-    borderRadius: "6px",
-    cursor: "pointer",
-  },
-  saveBtn: {
-    padding: "0.5rem 1rem",
-    background: "#2563eb",
-    color: "#fff",
-    border: "none",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontWeight: 500,
-  },
-};

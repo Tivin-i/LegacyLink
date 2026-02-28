@@ -1,3 +1,4 @@
+import { encodeBase64, decodeBase64 } from "../utils/base64";
 import { deriveKey, randomSalt } from "./kdf";
 import { encrypt, decrypt } from "./cipher";
 import type { VaultData } from "../vault-types";
@@ -53,9 +54,9 @@ export async function decryptVault(
 export function blobToStored(blob: EncryptedBlob): StoredEncryptedBlob {
   return {
     version: blob.version,
-    salt: arrayToBase64(blob.salt),
-    iv: arrayToBase64(blob.iv),
-    ciphertext: arrayToBase64(blob.ciphertext),
+    salt: encodeBase64(blob.salt),
+    iv: encodeBase64(blob.iv),
+    ciphertext: encodeBase64(blob.ciphertext),
   };
 }
 
@@ -65,9 +66,9 @@ export function blobToStored(blob: EncryptedBlob): StoredEncryptedBlob {
 export function storedToBlob(stored: StoredEncryptedBlob): EncryptedBlob {
   return {
     version: stored.version,
-    salt: base64ToArray(stored.salt),
-    iv: base64ToArray(stored.iv),
-    ciphertext: base64ToArray(stored.ciphertext),
+    salt: decodeBase64(stored.salt),
+    iv: decodeBase64(stored.iv),
+    ciphertext: decodeBase64(stored.ciphertext),
   };
 }
 
@@ -78,13 +79,47 @@ export interface StoredEncryptedBlob {
   ciphertext: string;
 }
 
-function arrayToBase64(arr: Uint8Array): string {
-  return btoa(String.fromCharCode(...arr));
+/**
+ * Type guard: returns true if value is a valid StoredEncryptedBlob.
+ */
+export function validateStoredEncryptedBlob(
+  value: unknown
+): value is StoredEncryptedBlob {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as StoredEncryptedBlob).version === "number" &&
+    typeof (value as StoredEncryptedBlob).salt === "string" &&
+    typeof (value as StoredEncryptedBlob).iv === "string" &&
+    typeof (value as StoredEncryptedBlob).ciphertext === "string"
+  );
 }
 
-function base64ToArray(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const arr = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
-  return arr;
+const INVALID_FILE_MSG = "Invalid file format. Choose an exported LegacyLink store file.";
+const INVALID_STORE_MSG = "Invalid LegacyLink store file.";
+
+/**
+ * Read and validate a StoredEncryptedBlob from a File (e.g. file input or drag-drop).
+ */
+export function readStoredBlobFromFile(
+  file: File
+): Promise<StoredEncryptedBlob> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const json = JSON.parse(reader.result as string) as unknown;
+        if (!validateStoredEncryptedBlob(json)) {
+          reject(new Error(INVALID_STORE_MSG));
+        } else {
+          resolve(json);
+        }
+      } catch {
+        reject(new Error(INVALID_FILE_MSG));
+      }
+    };
+    reader.onerror = () => reject(new Error("Failed to read file."));
+    reader.readAsText(file);
+  });
 }
+

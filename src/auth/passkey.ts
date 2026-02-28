@@ -4,6 +4,11 @@
  * Requires a resident key with user verification.
  */
 
+import {
+  arrayBufferToBase64,
+  base64ToArrayBuffer,
+} from "../utils/base64";
+
 const META_KEY_PASSKEY = "passkey";
 const PRF_SALT_LENGTH = 16;
 
@@ -67,17 +72,6 @@ async function decryptPassphrase(
 
 function toArrayBuffer(u: Uint8Array): ArrayBuffer {
   return u.buffer.slice(u.byteOffset, u.byteOffset + u.byteLength) as ArrayBuffer;
-}
-
-function arrayBufferToBase64(buf: ArrayBuffer): string {
-  return btoa(String.fromCharCode(...new Uint8Array(buf)));
-}
-
-function base64ToArrayBuffer(b64: string): ArrayBuffer {
-  const binary = atob(b64);
-  const buf = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
-  return buf.buffer.slice(0, buf.length) as ArrayBuffer;
 }
 
 export function isPasskeySupported(): boolean {
