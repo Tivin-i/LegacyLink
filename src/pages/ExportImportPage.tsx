@@ -4,7 +4,6 @@ import { useVault } from "../context/VaultContext";
 import { readStoredBlobFromFile } from "../crypto/vault-crypto";
 import { isPasskeySupported } from "../auth/passkey";
 import { usePasskeyAvailable } from "../hooks/usePasskeyAvailable";
-import { layout, links, typography, buttons, forms, messages } from "../styles/shared";
 
 export function ExportImportPage() {
   const {
@@ -68,66 +67,79 @@ export function ExportImportPage() {
   };
 
   return (
-    <main style={layout.main}>
-      <Link to="/entries" style={links.back}>
-        Back to list
-      </Link>
-      <h1 style={typography.title}>Export / Import</h1>
-      <section style={layout.section} aria-labelledby="passkey-heading">
-        <h2 id="passkey-heading" style={typography.h2}>
+    <div className="legacy-content">
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1.5rem" }}>
+        <Link to="/entries" className="legacy-btn" style={{ width: "auto" }}>
+          Back to list <span>←</span>
+        </Link>
+        <Link to="/print" className="legacy-btn" style={{ width: "auto" }}>
+          Print vault
+        </Link>
+      </div>
+      <h1 className="type-display">Export / Import</h1>
+      <div className="content-body" style={{ marginTop: "1rem", marginBottom: "2rem" }}>
+        <p>Backup your vault, import from file, or add a passkey for easier unlock.</p>
+      </div>
+
+      <section aria-labelledby="passkey-heading" style={{ marginBottom: "2rem" }}>
+        <h2 id="passkey-heading" className="type-label" style={{ marginBottom: "0.5rem" }}>
           Passkey
         </h2>
-        <p style={typography.body}>
-          Register a passkey to unlock the vault without typing your decryption
+        <p className="content-body" style={{ marginBottom: "1rem" }}>
+          Add a passkey to unlock the vault without typing your decryption
           key. Useful for successors with access to your device or authenticator.
         </p>
         {isPasskeySupported() ? (
           <>
             {passkeyRegistered ? (
-              <p style={messages.success}>A passkey is registered for this vault.</p>
+              <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>A passkey is added for this vault.</p>
             ) : (
               <button
                 type="button"
+                className="legacy-btn"
+                style={{ width: "auto" }}
                 onClick={handleRegisterPasskey}
                 disabled={passkeyLoading}
-                style={buttons.primary}
-                aria-label="Register passkey"
+                aria-label="Add a Passkey"
               >
-                {passkeyLoading ? "Registering…" : "Register passkey"}
+                {passkeyLoading ? "Adding…" : "Add a Passkey"} <span>+</span>
               </button>
             )}
             {passkeyError && (
-              <p role="alert" style={messages.error}>
+              <p role="alert" style={{ marginTop: "0.5rem", fontSize: "0.875rem", opacity: 0.9 }}>
                 {passkeyError}
               </p>
             )}
           </>
         ) : (
-          <p style={messages.muted}>Passkeys are not supported in this browser.</p>
+          <p style={{ fontSize: "0.9rem", opacity: 0.6 }}>Passkeys are not supported in this browser.</p>
         )}
       </section>
-      <section style={layout.section} aria-labelledby="export-heading">
-        <h2 id="export-heading" style={typography.h2}>
+
+      <section aria-labelledby="export-heading" style={{ marginBottom: "2rem" }}>
+        <h2 id="export-heading" className="type-label" style={{ marginBottom: "0.5rem" }}>
           Export vault
         </h2>
-        <p style={typography.body}>
+        <p className="content-body" style={{ marginBottom: "1rem" }}>
           Download an encrypted backup of your vault. Store it safely. You need
           your decryption key to restore it.
         </p>
         <button
           type="button"
+          className="legacy-btn"
+          style={{ width: "auto" }}
           onClick={handleExport}
-          style={buttons.primary}
           aria-label="Download encrypted vault backup"
         >
-          Download backup
+          Download backup <span>↓</span>
         </button>
       </section>
-      <section style={layout.section} aria-labelledby="import-heading">
-        <h2 id="import-heading" style={typography.h2}>
+
+      <section aria-labelledby="import-heading">
+        <h2 id="import-heading" className="type-label" style={{ marginBottom: "0.5rem" }}>
           Import vault
         </h2>
-        <p style={typography.body}>
+        <p className="content-body" style={{ marginBottom: "1rem" }}>
           Replace this vault with the contents of a previously exported file.
           Use the same decryption key you used when creating that backup.
         </p>
@@ -137,26 +149,27 @@ export function ExportImportPage() {
           accept=".json,application/json"
           onChange={handleImport}
           aria-label="Choose vault file to import"
-          style={forms.fileInputHidden}
+          style={{ position: "absolute", width: "0.1px", height: "0.1px", opacity: 0, overflow: "hidden", zIndex: -1 }}
         />
         <button
           type="button"
+          className="legacy-btn"
+          style={{ width: "auto" }}
           onClick={() => fileInputRef.current?.click()}
-          style={buttons.primary}
         >
-          Choose file…
+          Choose file… <span>→</span>
         </button>
         {importError && (
-          <p role="alert" style={messages.error}>
+          <p role="alert" style={{ marginTop: "0.5rem", fontSize: "0.875rem" }}>
             {importError}
           </p>
         )}
         {importSuccess && (
-          <p role="status" style={messages.success}>
+          <p role="status" style={{ marginTop: "0.5rem", fontSize: "0.9rem", opacity: 0.8 }}>
             Vault imported successfully.
           </p>
         )}
       </section>
-    </main>
+    </div>
   );
 }

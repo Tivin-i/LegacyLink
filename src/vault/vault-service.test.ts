@@ -32,8 +32,10 @@ describe("vault-service", () => {
   describe("unlockVault", () => {
     it("returns empty vault when no store exists", async () => {
       const data = await unlockVault("any-key");
-      expect(data.version).toBe(1);
+      expect(data.version).toBe(3);
       expect(data.entries).toEqual([]);
+      expect(data.categories).toEqual([]);
+      expect(data.history).toEqual([]);
     });
 
     it("decrypts and returns vault when store exists and key is correct", async () => {
@@ -51,7 +53,9 @@ describe("vault-service", () => {
       };
       await saveVault("secret", vault);
       const data = await unlockVault("secret");
-      expect(data.version).toBe(1);
+      expect(data.version).toBe(3);
+      expect(data.categories).toEqual([]);
+      expect(data.history).toBeDefined();
       expect(data.entries).toHaveLength(1);
       expect(data.entries[0]?.title).toBe("First");
     });
@@ -77,8 +81,11 @@ describe("vault-service", () => {
       await createAndSaveEmptyVault("new-key");
       expect(store.blob).not.toBeNull();
       const data = await unlockVault("new-key");
-      expect(data.version).toBe(1);
+      expect(data.version).toBe(3);
       expect(data.entries).toEqual([]);
+      expect(data.categories).toEqual([]);
+      expect(data.history).toHaveLength(1);
+      expect(data.history?.[0]?.action).toBe("store_created");
     });
 
     it("wrong key cannot unlock the created store", async () => {

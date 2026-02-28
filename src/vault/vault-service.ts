@@ -6,9 +6,51 @@ import {
   type StoredEncryptedBlob,
 } from "../crypto/vault-crypto";
 import { readVaultBlob, writeVaultBlob } from "../storage/db";
-import type { VaultData, Entry } from "../vault-types";
+import type { VaultData, Entry, HistoryEntry } from "../vault-types";
 
-const DEFAULT_VAULT: VaultData = { version: 1, entries: [] };
+const VAULT_VERSION = 3;
+const DEFAULT_VAULT: VaultData = {
+  version: VAULT_VERSION,
+  entries: [],
+  categories: [],
+  successorGuide: "",
+  history: [],
+  uploadedKeys: [],
+};
+
+function migrateVault(data: VaultData): VaultData {
+  let out: VaultData = { ...data };
+  if (out.version < 2) {
+    out = {
+      ...out,
+      version: 2,
+      categories: out.categories ?? [],
+      entries: (out.entries ?? []).map((e) => ({ ...e, categoryId: e.categoryId ?? undefined })),
+    };
+  }
+  if (out.version < 3) {
+    out = {
+      ...out,
+      version: VAULT_VERSION,
+      successorGuide: out.successorGuide ?? "",
+      history: out.history ?? [],
+      uploadedKeys: out.uploadedKeys ?? [],
+    };
+  }
+  return out;
+}
+
+const HISTORY_CAP = 500;
+
+/** Append a history entry and cap length. */
+export function appendHistory(
+  history: HistoryEntry[] | undefined,
+  entry: Omit<HistoryEntry, "at">
+): HistoryEntry[] {
+  const at = new Date().toISOString();
+  const list = history ?? [];
+  return [{ ...entry, at }, ...list].slice(0, HISTORY_CAP);
+}
 
 /**
  * Unlock vault with passphrase. Returns decrypted data or throws.
@@ -17,7 +59,8 @@ export async function unlockVault(passphrase: string): Promise<VaultData> {
   const stored = await readVaultBlob();
   if (!stored) return { ...DEFAULT_VAULT, entries: [] };
   const blob = storedToBlob(stored);
-  return decryptVault(passphrase, blob);
+  const raw = await decryptVault(passphrase, blob);
+  return migrateVault(raw);
 }
 
 /**
@@ -34,8 +77,18 @@ export async function saveVault(
 /**
  * Create a new empty store and persist it encrypted with the given passphrase.
  */
-export async function createAndSaveEmptyVault(passphrase: string): Promise<void> {
-  await saveVault(passphrase, { ...DEFAULT_VAULT, entries: [] });
+/** Create and persist empty vault; returns the initial vault data for in-memory state. */
+export async function createAndSaveEmptyVault(passphrase: string): Promise<VaultData> {
+  const initial: VaultData = {
+    version: VAULT_VERSION,
+    entries: [],
+    categories: [],
+    successorGuide: "",
+    history: appendHistory([], { action: "store_created" }),
+    uploadedKeys: [],
+  };
+  await saveVault(passphrase, initial);
+  return initial;
 }
 
 /**
@@ -57,7 +110,8 @@ export async function importVaultFromBlob(
   stored: StoredEncryptedBlob
 ): Promise<VaultData> {
   const blob = storedToBlob(stored);
-  return decryptVault(passphrase, blob);
+  const raw = await decryptVault(passphrase, blob);
+  return migrateVault(raw);
 }
 
 /**
@@ -65,7 +119,8 @@ export async function importVaultFromBlob(
  */
 export function createEmptyEntry(
   templateId: string,
-  title: string
+  title: string,
+  categoryId?: string
 ): Entry {
   return {
     id: crypto.randomUUID(),
@@ -73,5 +128,6 @@ export function createEmptyEntry(
     title: title || "Untitled",
     updatedAt: new Date().toISOString(),
     sections: {},
+    ...(categoryId != null && categoryId !== "" ? { categoryId } : {}),
   };
 }

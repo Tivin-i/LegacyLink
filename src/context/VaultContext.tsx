@@ -5,7 +5,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import type { VaultData, Entry, SectionData } from "../vault-types";
+import type { VaultData, Entry, SectionData, Category, HistoryEntry, UploadedKey } from "../vault-types";
 import type { StoredEncryptedBlob } from "../crypto/vault-crypto";
 import {
   unlockVault,
@@ -14,6 +14,7 @@ import {
   importVaultFromBlob,
   createEmptyEntry,
   createAndSaveEmptyVault,
+  appendHistory,
 } from "../vault/vault-service";
 import { readVaultBlob } from "../storage/db";
 import { registerPasskey as registerPasskeyAuth } from "../auth/passkey";
@@ -40,20 +41,34 @@ interface VaultContextValue {
   createEntry: (
     templateId: string,
     title: string,
-    sections: Record<string, SectionData>
+    sections: Record<string, SectionData>,
+    categoryId?: string
   ) => Promise<Entry | undefined>;
   updateEntry: (id: string, updater: (e: Entry) => Entry) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
+  /** Categories (from vault). */
+  categories: Category[];
+  addCategory: (name: string) => Promise<void>;
+  renameCategory: (id: string, name: string) => Promise<void>;
+  deleteCategory: (id: string) => Promise<{ ok: boolean; error?: string }>;
   exportVault: () => Promise<StoredEncryptedBlob | null>;
   importVault: (
     stored: StoredEncryptedBlob
   ) => Promise<{ ok: boolean; error?: string }>;
   registerPasskey: () => Promise<{ ok: boolean; error?: string }>;
+  /** For Successors guide (vault-level). */
+  successorGuide: string;
+  updateSuccessorGuide: (text: string) => Promise<void>;
+  /** History log (newest first). */
+  history: HistoryEntry[];
+  /** Uploaded keys (SSH/certs). */
+  uploadedKeys: UploadedKey[];
+  addUploadedKey: (name: string, type: "ssh" | "cert", contentBase64: string, mimeType?: string) => Promise<void>;
+  deleteUploadedKey: (id: string) => Promise<void>;
+  getUploadedKey: (id: string) => UploadedKey | undefined;
 }
 
 const VaultContext = createContext<VaultContextValue | null>(null);
-
-const EMPTY_VAULT: VaultData = { version: 1, entries: [] };
 
 export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [vault, setVault] = useState<VaultData | null>(null);
@@ -93,8 +108,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const createNewStore = useCallback(
     async (passphrase: string): Promise<{ ok: boolean; error?: string }> => {
       try {
-        await createAndSaveEmptyVault(passphrase);
-        setVault({ ...EMPTY_VAULT, entries: [] });
+        const initial = await createAndSaveEmptyVault(passphrase);
+        setVault(initial);
         setPassphraseRef({ current: passphrase });
         setHasExistingStore(true);
         return { ok: true };
@@ -113,8 +128,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     ): Promise<{ ok: boolean; error?: string }> => {
       try {
         const data = await importVaultFromBlob(passphrase, stored);
-        await saveVault(passphrase, data);
-        setVault(data);
+        const withHistory: VaultData = {
+          ...data,
+          history: appendHistory(data.history, { action: "vault_imported" }),
+        };
+        await saveVault(passphrase, withHistory);
+        setVault(withHistory);
         setPassphraseRef({ current: passphrase });
         setHasExistingStore(true);
         return { ok: true };
@@ -168,19 +187,26 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     async (
       templateId: string,
       title: string,
-      sections: Record<string, SectionData>
+      sections: Record<string, SectionData>,
+      categoryId?: string
     ): Promise<Entry | undefined> => {
       if (!vault || !passphraseRef) return undefined;
-      const entry = createEmptyEntry(templateId, title);
+      const entry = createEmptyEntry(templateId, title, categoryId);
       const fullEntry: Entry = {
         ...entry,
         title,
         sections,
         updatedAt: new Date().toISOString(),
+        ...(categoryId != null && categoryId !== "" ? { categoryId } : {}),
       };
       const next: VaultData = {
         ...vault,
         entries: [...vault.entries, fullEntry],
+        history: appendHistory(vault.history, {
+          action: "entry_created",
+          entryId: fullEntry.id,
+          entryTitle: fullEntry.title,
+        }),
       };
       setVault(next);
       await saveVault(passphraseRef.current, next);
@@ -192,8 +218,18 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const updateEntry = useCallback(
     async (id: string, updater: (e: Entry) => Entry) => {
       if (!vault || !passphraseRef) return;
+      const prev = vault.entries.find((e) => e.id === id);
       const entries = vault.entries.map((e) => (e.id === id ? updater(e) : e));
-      const next = { ...vault, entries };
+      const updated = entries.find((e) => e.id === id);
+      const next: VaultData = {
+        ...vault,
+        entries,
+        history: appendHistory(vault.history, {
+          action: "entry_updated",
+          entryId: id,
+          entryTitle: updated?.title ?? prev?.title,
+        }),
+      };
       setVault(next);
       await saveVault(passphraseRef.current, next);
     },
@@ -203,10 +239,65 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const deleteEntry = useCallback(
     async (id: string) => {
       if (!vault || !passphraseRef) return;
+      const prev = vault.entries.find((e) => e.id === id);
       const entries = vault.entries.filter((e) => e.id !== id);
-      const next = { ...vault, entries };
+      const next: VaultData = {
+        ...vault,
+        entries,
+        history: appendHistory(vault.history, {
+          action: "entry_deleted",
+          entryId: id,
+          entryTitle: prev?.title,
+        }),
+      };
       setVault(next);
       await saveVault(passphraseRef.current, next);
+    },
+    [vault, passphraseRef]
+  );
+
+  const categories = vault?.categories ?? [];
+
+  const addCategory = useCallback(
+    async (name: string) => {
+      if (!vault || !passphraseRef) return;
+      const id = crypto.randomUUID();
+      const next: VaultData = {
+        ...vault,
+        categories: [...(vault.categories ?? []), { id, name: name.trim() }],
+      };
+      setVault(next);
+      await saveVault(passphraseRef.current, next);
+    },
+    [vault, passphraseRef]
+  );
+
+  const renameCategory = useCallback(
+    async (id: string, name: string) => {
+      if (!vault || !passphraseRef) return;
+      const cats = (vault.categories ?? []).map((c) =>
+        c.id === id ? { ...c, name: name.trim() } : c
+      );
+      const next = { ...vault, categories: cats };
+      setVault(next);
+      await saveVault(passphraseRef.current, next);
+    },
+    [vault, passphraseRef]
+  );
+
+  const deleteCategory = useCallback(
+    async (id: string): Promise<{ ok: boolean; error?: string }> => {
+      if (!vault || !passphraseRef) return { ok: false, error: "Vault not ready." };
+      const inUse = vault.entries.some((e) => e.categoryId === id);
+      if (inUse)
+        return { ok: false, error: "Category is in use. Remove it from entries first." };
+      const next: VaultData = {
+        ...vault,
+        categories: (vault.categories ?? []).filter((c) => c.id !== id),
+      };
+      setVault(next);
+      await saveVault(passphraseRef.current, next);
+      return { ok: true };
     },
     [vault, passphraseRef]
   );
@@ -223,8 +314,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       if (!passphraseRef) return { ok: false, error: "Vault is locked." };
       try {
         const data = await importVaultFromBlob(passphraseRef.current, stored);
-        setVault(data);
-        await saveVault(passphraseRef.current, data);
+        const withHistory: VaultData = {
+          ...data,
+          history: appendHistory(data.history, { action: "vault_imported" }),
+        };
+        setVault(withHistory);
+        await saveVault(passphraseRef.current, withHistory);
         return { ok: true };
       } catch (e) {
         const message =
@@ -244,6 +339,61 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return registerPasskeyAuth(passphraseRef.current);
   }, [passphraseRef]);
 
+  const successorGuide = vault?.successorGuide ?? "";
+  const updateSuccessorGuide = useCallback(
+    async (text: string) => {
+      if (!vault || !passphraseRef) return;
+      const next = { ...vault, successorGuide: text };
+      setVault(next);
+      await saveVault(passphraseRef.current, next);
+    },
+    [vault, passphraseRef]
+  );
+
+  const history = vault?.history ?? [];
+  const uploadedKeys = vault?.uploadedKeys ?? [];
+
+  const addUploadedKey = useCallback(
+    async (name: string, type: "ssh" | "cert", contentBase64: string, mimeType?: string) => {
+      if (!vault || !passphraseRef) return;
+      const key: UploadedKey = {
+        id: crypto.randomUUID(),
+        name,
+        type,
+        contentBase64,
+        uploadedAt: new Date().toISOString(),
+        ...(mimeType != null ? { mimeType } : {}),
+      };
+      const next: VaultData = {
+        ...vault,
+        uploadedKeys: [...(vault.uploadedKeys ?? []), key],
+      };
+      setVault(next);
+      await saveVault(passphraseRef.current, next);
+    },
+    [vault, passphraseRef]
+  );
+
+  const deleteUploadedKey = useCallback(
+    async (id: string) => {
+      if (!vault || !passphraseRef) return;
+      const next: VaultData = {
+        ...vault,
+        uploadedKeys: (vault.uploadedKeys ?? []).filter((k) => k.id !== id),
+      };
+      setVault(next);
+      await saveVault(passphraseRef.current, next);
+    },
+    [vault, passphraseRef]
+  );
+
+  const getUploadedKey = useCallback(
+    (id: string): UploadedKey | undefined => {
+      return vault?.uploadedKeys?.find((k) => k.id === id);
+    },
+    [vault]
+  );
+
   const value = useMemo<VaultContextValue>(
     () => ({
       isUnlocked,
@@ -259,9 +409,20 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       createEntry,
       updateEntry,
       deleteEntry,
+      categories,
+      addCategory,
+      renameCategory,
+      deleteCategory,
       exportVault,
       importVault,
       registerPasskey,
+      successorGuide,
+      updateSuccessorGuide,
+      history,
+      uploadedKeys,
+      addUploadedKey,
+      deleteUploadedKey,
+      getUploadedKey,
     }),
     [
       isUnlocked,
@@ -277,9 +438,20 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       createEntry,
       updateEntry,
       deleteEntry,
+      categories,
+      addCategory,
+      renameCategory,
+      deleteCategory,
       exportVault,
       importVault,
       registerPasskey,
+      successorGuide,
+      updateSuccessorGuide,
+      history,
+      uploadedKeys,
+      addUploadedKey,
+      deleteUploadedKey,
+      getUploadedKey,
     ]
   );
 

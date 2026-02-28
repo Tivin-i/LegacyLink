@@ -1,103 +1,96 @@
-import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useVault } from "../context/VaultContext";
 import { getTemplate } from "../templates";
-import { layout, links, typography, buttons } from "../styles/shared";
+
+type CategoryFilter = "all" | "none" | string;
 
 export function EntryListPage() {
-  const { vault, lock } = useVault();
-  const navigate = useNavigate();
+  const { vault } = useVault();
   const entries = vault?.entries ?? [];
+  const categories = vault?.categories ?? [];
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
 
-  const handleLock = () => {
-    lock();
-    navigate("/", { replace: true });
-  };
+  const filteredEntries = useMemo(() => {
+    if (categoryFilter === "all") return entries;
+    if (categoryFilter === "none") return entries.filter((e) => !e.categoryId || e.categoryId === "");
+    return entries.filter((e) => e.categoryId === categoryFilter);
+  }, [entries, categoryFilter]);
 
-  const headerStyle: React.CSSProperties = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "1.5rem",
-    flexWrap: "wrap",
-    gap: "0.75rem",
-  };
-  const navStyle: React.CSSProperties = {
-    display: "flex",
-    gap: "0.75rem",
-    alignItems: "center",
-  };
-  const emptyStyle: React.CSSProperties = {
-    padding: "2rem",
-    textAlign: "center",
-    color: "#666",
-  };
-  const listStyle: React.CSSProperties = {
-    listStyle: "none",
-    margin: 0,
-    padding: 0,
-  };
-  const entryLinkStyle: React.CSSProperties = {
-    display: "block",
-    padding: "1rem 0",
-    color: "inherit",
-    textDecoration: "none",
-  };
+  const categoryById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const c of categories) map[c.id] = c.name;
+    return map;
+  }, [categories]);
 
   return (
-    <main style={layout.main}>
-      <header style={headerStyle}>
-        <h1 style={typography.title}>Entries</h1>
-        <nav style={navStyle} aria-label="Actions">
-          <Link to="/entries/new" style={links.primary}>
-            Add entry
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "2rem", flexWrap: "wrap", gap: "1rem" }}>
+        <div>
+          <h1 className="type-display">
+            Overview <sup>(START)</sup>
+          </h1>
+          <div className="content-body" style={{ marginTop: "1rem" }}>
+            <p>Select a system from the index to view its documentation, or add a new entry.</p>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <Link to="/print" className="legacy-btn" style={{ width: "auto", padding: "1rem 1.5rem" }}>
+            Print vault
           </Link>
-          <Link to="/export-import" style={links.primary}>
-            Export / Import
+          <Link to="/entries/new" className="legacy-btn" style={{ width: "auto", padding: "1rem 1.5rem" }}>
+            Add entry <span>+</span>
           </Link>
-          <button
-            type="button"
-            onClick={handleLock}
-            style={buttons.secondary}
-            aria-label="Lock vault"
+        </div>
+      </div>
+
+      {categories.length > 0 && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          <label htmlFor="filter-category" className="sr-only">Filter by category</label>
+          <select
+            id="filter-category"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
+            style={{ padding: "0.5rem 0.75rem", minWidth: "10rem" }}
+            aria-label="Filter by category"
           >
-            Lock
-          </button>
-        </nav>
-      </header>
-      {entries.length === 0 ? (
-        <section style={emptyStyle} aria-label="Empty state">
-          <p>No entries yet.</p>
-          <Link to="/entries/new" style={links.primaryWithMargin}>
-            Create your first entry
-          </Link>
-        </section>
+            <option value="all">All</option>
+            <option value="none">Uncategorized</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {filteredEntries.length === 0 ? (
+        <div className="content-body">
+          <p style={{ color: "var(--ink)", opacity: 0.7 }}>
+            {entries.length === 0 ? "No entries yet. Add your first system to get started." : "No entries in this category."}
+          </p>
+        </div>
       ) : (
-        <ul style={listStyle}>
-          {entries.map((entry) => {
+        <ul className="nav-list" style={{ marginTop: 0 }}>
+          {filteredEntries.map((entry) => {
             const template = getTemplate(entry.templateId);
+            const categoryName = entry.categoryId ? categoryById[entry.categoryId] : null;
             return (
-              <li key={entry.id} style={{ borderBottom: "1px solid #eee" }}>
+              <li key={entry.id} style={{ listStyle: "none" }}>
                 <Link
                   to={`/entries/${entry.id}`}
-                  style={entryLinkStyle}
+                  className="nav-item"
+                  style={{ textDecoration: "none", color: "inherit" }}
                   aria-label={`Open ${entry.title}`}
                 >
-                  <span style={{ display: "block", fontWeight: 500 }}>{entry.title}</span>
-                  {template && (
-                    <span style={{ fontSize: "0.875rem", color: "#666" }}>
-                      {template.name}
-                    </span>
-                  )}
-                  <span style={{ fontSize: "0.8125rem", color: "#999" }}>
-                    {new Date(entry.updatedAt).toLocaleDateString()}
-                  </span>
+                  {entry.title}
+                  {template != null && <small className="nav-item-sub">{template.name}</small>}
+                  {categoryName != null && <small className="nav-item-sub" style={{ marginLeft: "0.25rem" }}> · {categoryName}</small>}
                 </Link>
               </li>
             );
           })}
         </ul>
       )}
-    </main>
+    </>
   );
 }

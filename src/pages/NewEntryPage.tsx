@@ -3,24 +3,25 @@ import { useVault } from "../context/VaultContext";
 import { getTemplate, LEGACY_SYSTEM_TEMPLATE_ID } from "../templates";
 import { TemplateForm } from "../components/TemplateForm";
 import type { SectionData } from "../vault-types";
-import { layout, links, typography } from "../styles/shared";
 
 export function NewEntryPage() {
   const navigate = useNavigate();
-  const { createEntry } = useVault();
+  const { createEntry, categories } = useVault();
   const template = getTemplate(LEGACY_SYSTEM_TEMPLATE_ID);
 
   if (!template) {
     return (
-      <main style={layout.main}>
-        <p>Template not found.</p>
-        <Link to="/entries" style={links.back}>Back to list</Link>
-      </main>
+      <div className="legacy-content">
+        <p className="content-body">Template not found.</p>
+        <Link to="/entries" className="legacy-btn" style={{ width: "auto", display: "inline-block" }}>
+          Back to list <span>←</span>
+        </Link>
+      </div>
     );
   }
 
-  const handleCreate = async (sections: Record<string, SectionData>, title: string) => {
-    const entry = await createEntry(LEGACY_SYSTEM_TEMPLATE_ID, title, sections);
+  const handleCreate = async (sections: Record<string, SectionData>, title: string, categoryId?: string) => {
+    const entry = await createEntry(LEGACY_SYSTEM_TEMPLATE_ID, title, sections, categoryId);
     if (entry) navigate(`/entries/${entry.id}`, { replace: true });
   };
 
@@ -33,20 +34,24 @@ export function NewEntryPage() {
   };
 
   return (
-    <main style={layout.main}>
-      <Link to="/entries" style={links.back}>
-        Back to list
+    <div className="legacy-content">
+      <Link to="/entries" className="legacy-btn" style={{ width: "auto", display: "inline-block", marginBottom: "1.5rem" }}>
+        Back to list <span>←</span>
       </Link>
-      <h1 style={typography.title}>New entry</h1>
+      <h1 className="type-display">New entry</h1>
+      <div className="content-body" style={{ marginTop: "1rem", marginBottom: "2rem" }}>
+        <p>Create a new system document. All fields are optional; fill in what applies.</p>
+      </div>
       <TemplateForm
         template={template}
         entry={entry}
-        onUpdate={async (sections, title) => {
-          await handleCreate(sections, title);
+        categories={categories}
+        onUpdate={async (sections, title, categoryId) => {
+          await handleCreate(sections, title, categoryId);
         }}
         onCancel={() => navigate("/entries")}
         saveLabel="Create"
       />
-    </main>
+    </div>
   );
 }

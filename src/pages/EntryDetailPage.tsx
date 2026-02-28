@@ -1,42 +1,63 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useVault } from "../context/VaultContext";
+import { useLayoutContext } from "../context/LayoutContext";
 import { getTemplate } from "../templates";
 import { TemplateForm } from "../components/TemplateForm";
+import { DocMeta, DataBlock } from "../components/layout";
+import { MarkdownContent } from "../components/MarkdownContent";
 import type { SectionData } from "../vault-types";
-import { layout, links, typography, buttons } from "../styles/shared";
 
 export function EntryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getEntry, updateEntry, deleteEntry } = useVault();
+  const { getEntry, updateEntry, deleteEntry, categories } = useVault();
+  const { setContextPanelActions } = useLayoutContext() ?? {};
   const entry = id ? getEntry(id) : undefined;
   const [editing, setEditing] = useState(false);
 
+  useEffect(() => {
+    if (setContextPanelActions == null) return;
+    if (entry == null) {
+      setContextPanelActions(null);
+      return;
+    }
+    setContextPanelActions({
+      onEdit: () => setEditing(true),
+      onPrint: () => window.print(),
+    });
+    return () => setContextPanelActions(null);
+  }, [entry?.id, setContextPanelActions]);
+
   if (!entry) {
     return (
-      <main style={layout.main}>
-        <p>Entry not found.</p>
-        <Link to="/entries" style={links.back}>Back to list</Link>
-      </main>
+      <div className="legacy-content">
+        <p className="content-body">Entry not found.</p>
+        <Link to="/entries" className="legacy-btn" style={{ width: "auto", display: "inline-block" }}>
+          Back to list <span>←</span>
+        </Link>
+      </div>
     );
   }
 
   const template = getTemplate(entry.templateId);
   if (!template) {
     return (
-      <main style={layout.main}>
-        <p>Template not found.</p>
-        <Link to="/entries" style={links.back}>Back to list</Link>
-      </main>
+      <div className="legacy-content">
+        <p className="content-body">Template not found.</p>
+        <Link to="/entries" className="legacy-btn" style={{ width: "auto", display: "inline-block" }}>
+          Back to list <span>←</span>
+        </Link>
+      </div>
     );
   }
 
-  const handleUpdate = async (sections: Record<string, SectionData>, title: string) => {
+  const handleUpdate = async (sections: Record<string, SectionData>, title: string, categoryId?: string) => {
     await updateEntry(entry.id, (e) => ({
       ...e,
       title,
       sections,
+      ...(categoryId != null && categoryId !== "" ? { categoryId } : { categoryId: undefined }),
       updatedAt: new Date().toISOString(),
     }));
     setEditing(false);
@@ -48,93 +69,90 @@ export function EntryDetailPage() {
     navigate("/entries", { replace: true });
   };
 
-  const headerStyle: React.CSSProperties = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "1rem",
-    flexWrap: "wrap",
-    gap: "0.5rem",
-  };
-  const sectionStyle: React.CSSProperties = {
-    marginBottom: "1.5rem",
-    padding: "1rem",
-    border: "1px solid #eee",
-    borderRadius: "6px",
-  };
-
   if (editing) {
     return (
-      <main style={layout.main}>
-        <Link to="/entries" style={links.back}>
-          Back to list
+      <div className="legacy-content">
+        <Link to="/entries" className="legacy-btn" style={{ width: "auto", display: "inline-block", marginBottom: "1.5rem" }}>
+          Back to list <span>←</span>
         </Link>
         <TemplateForm
           template={template}
           entry={entry}
-          onUpdate={(sections, title) => handleUpdate(sections, title)}
+          categories={categories}
+          onUpdate={(sections, title, categoryId) => handleUpdate(sections, title, categoryId)}
           onCancel={() => setEditing(false)}
           saveLabel="Save"
         />
-      </main>
-    );
-  }
-
-  return (
-    <main style={layout.main}>
-      <div style={headerStyle}>
-        <Link to="/entries" style={links.back}>
-          Back to list
-        </Link>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div style={{ marginTop: "1.5rem" }}>
           <button
             type="button"
-            onClick={() => setEditing(true)}
-            style={buttons.primary}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
+            className="legacy-btn"
+            style={{ width: "auto", borderColor: "var(--ink)", opacity: 0.8 }}
             onClick={handleDelete}
-            style={buttons.danger}
             aria-label="Delete entry"
           >
             Delete
           </button>
         </div>
       </div>
-      <h1 style={typography.titleSmall}>{entry.title}</h1>
-      <p style={typography.meta}>
-        {template.name} · Updated{" "}
-        {new Date(entry.updatedAt).toLocaleString()}
-      </p>
-      {template.sections.map((section) => (
-        <section key={section.id} style={sectionStyle}>
-          <h2 style={typography.h2}>
-            {section.label}
-          </h2>
-          <dl style={{ margin: 0 }}>
-            {section.fields.map((field) => {
-              const value = entry.sections[section.id]?.[field.id];
-              const display =
-                value !== undefined && value !== null && String(value).trim()
-                  ? String(value)
-                  : "—";
-              return (
-                <div key={field.id} style={{ marginTop: "0.5rem" }}>
-                  <dt style={{ margin: 0, fontSize: "0.875rem", color: "#666" }}>
-                    {field.label}
-                  </dt>
-                  <dd style={{ margin: "0.25rem 0 0", fontSize: "1rem" }}>
-                    {field.type === "password" ? "••••••••" : display}
-                  </dd>
-                </div>
-              );
-            })}
-          </dl>
-        </section>
-      ))}
-    </main>
+    );
+  }
+
+  const lastUpdated = new Date(entry.updatedAt);
+  const formattedDate = lastUpdated.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" }).replace(/\//g, ".");
+
+  return (
+    <div className="legacy-content">
+      <DocMeta
+        items={[
+          { label: "Last Updated", value: formattedDate },
+          { label: "Author", value: <>Admin <sup className="sup-tag">aka DAD</sup></> },
+          { label: "Status", value: <>Live <sup className="sup-tag">(US-EAST)</sup></> },
+        ]}
+      />
+
+      <h1 className="type-display">
+        {entry.title} <sup>v2.0</sup>
+      </h1>
+
+      <div className="content-body">
+        <p>
+          This document outlines the system and access details. Use the index to navigate between systems.
+        </p>
+      </div>
+
+      {template.sections.map((section) => {
+        const rows = section.fields.map((field) => {
+          const value = entry.sections[section.id]?.[field.id];
+          const hasValue = value !== undefined && value !== null && String(value).trim();
+          const display =
+            hasValue
+              ? field.type === "password"
+                ? "••••••••"
+                : field.type === "textarea"
+                  ? <MarkdownContent content={String(value)} />
+                  : String(value)
+              : "—";
+          return { label: field.label, value: display };
+        });
+        return (
+          <DataBlock
+            key={section.id}
+            title={section.label}
+            badge="[READ ONLY]"
+            rows={rows}
+          />
+        );
+      })}
+
+      <div className="content-body" style={{ marginTop: "3rem" }}>
+        <h3 style={{ fontSize: "1.5rem", marginBottom: "1rem", fontWeight: 400 }}>
+          Actions
+        </h3>
+        <p>
+          Use the Quick Actions panel to edit this document, view history, or print / export to PDF.
+        </p>
+      </div>
+    </div>
   );
 }

@@ -51,7 +51,7 @@ describe("UnlockPage", () => {
   it("when no store exists shows choice: Create new Store and Open existing Store", async () => {
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByText(/create new legacylink store/i)).toBeInTheDocument();
+      expect(screen.getByText(/create a new legacylink store/i)).toBeInTheDocument();
     });
     expect(screen.getByText(/open existing legacylink store/i)).toBeInTheDocument();
   });
@@ -59,9 +59,9 @@ describe("UnlockPage", () => {
   it("when no store, clicking Create new Store shows create-key form", async () => {
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /create new legacylink store/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /create a new legacylink store/i })).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByRole("button", { name: /create new legacylink store/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create a new legacylink store/i }));
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Decryption key…")).toBeInTheDocument();
     });
@@ -72,9 +72,9 @@ describe("UnlockPage", () => {
   it("creating new store with matching keys unlocks and navigates to entries", async () => {
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /create new legacylink store/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /create a new legacylink store/i })).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByRole("button", { name: /create new legacylink store/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create a new legacylink store/i }));
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Decryption key…")).toBeInTheDocument();
     });

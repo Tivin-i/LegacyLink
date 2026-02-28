@@ -1,20 +1,435 @@
+/* Legacy Documentation System – design system */
 :root {
-  font-family: system-ui, -apple-system, sans-serif;
-  line-height: 1.5;
+  --bg: #EEEDE9;
+  --ink: #080808;
+  --line-color: #080808;
+  --active: #080808;
+  --active-text: #EEEDE9;
+  --font-main: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --grid-unit: 1rem;
+
+  font-family: var(--font-main);
+  line-height: 1.2;
   font-weight: 400;
-  color: #1a1a1a;
-  background-color: #fafafa;
+  color: var(--ink);
+  background-color: var(--bg);
 }
 
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
-  margin: 0;
-  min-height: 100vh;
+  background-color: var(--bg);
+  color: var(--ink);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
 }
 
+/* Texture overlay */
+.texture-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  z-index: 9999;
+}
+
+/* Layout */
+.app-container {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  grid-template-rows: 60px 1fr;
+  height: 100%;
+  border: 1px solid var(--line-color);
+  margin: 20px;
+}
+
+.border-r { border-right: 1px solid var(--line-color); }
+.border-b { border-bottom: 1px solid var(--line-color); }
+.border-l { border-left: 1px solid var(--line-color); }
+.border-t { border-top: 1px solid var(--line-color); }
+
+/* Typography */
+h1, h2, h3, h4 {
+  font-weight: 400;
+  letter-spacing: -0.03em;
+}
+
+.type-display {
+  font-size: 3.5rem;
+  line-height: 0.9;
+  margin-bottom: 1rem;
+}
+
+.type-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.type-mono {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9rem;
+}
+
+sup {
+  font-size: 0.5em;
+  vertical-align: super;
+  margin-left: 2px;
+}
+
+.sup-tag {
+  font-size: 0.6em;
+  vertical-align: top;
+  margin-left: 2px;
+  font-weight: normal;
+}
+
+/* Header */
+.legacy-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  padding: 0 1.5rem;
+  justify-content: space-between;
+}
+
+.legacy-brand {
+  font-size: 2rem;
+  letter-spacing: -0.05em;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.legacy-brand-icon {
+  border: 1px solid var(--ink);
+  width: 30px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  position: relative;
+}
+
+.legacy-brand-icon::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 1px;
+  height: 80%;
+  background: var(--ink);
+}
+
+.status-pill {
+  border: 1px solid var(--ink);
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--ink);
+  border-radius: 50%;
+  animation: legacy-pulse 4s infinite;
+}
+
+@keyframes legacy-pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+/* Sidebar */
+.legacy-sidebar {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-section {
+  padding: 1.5rem;
+}
+
+.nav-list {
+  list-style: none;
+  margin-top: 1rem;
+}
+
+.nav-item {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: inherit;
+  text-decoration: none;
+  background: none;
+  border: none;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+}
+
+.nav-item:hover {
+  padding-left: 5px;
+}
+
+.nav-item.active {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.nav-item.active::before {
+  content: '→';
+  margin-right: 5px;
+}
+
+.nav-item-sub {
+  opacity: 0.6;
+  margin-left: 5px;
+  font-weight: normal;
+}
+
+/* Main content */
+.legacy-content {
+  padding: 3rem;
+  overflow-y: auto;
+  position: relative;
+}
+
+.doc-meta {
+  margin-bottom: 4rem;
+  display: flex;
+  gap: 2rem;
+}
+
+.meta-block {
+  border-left: 1px solid var(--ink);
+  padding-left: 1rem;
+}
+
+.content-body {
+  max-width: 65ch;
+  font-size: 1.1rem;
+  line-height: 1.5;
+}
+
+.content-body p {
+  margin-bottom: 1.5rem;
+}
+
+/* Markdown-rendered content (e.g. in DataBlock) */
+.markdown-content {
+  font-size: inherit;
+  line-height: 1.5;
+}
+.markdown-content p { margin: 0 0 0.75rem; }
+.markdown-content ul, .markdown-content ol { margin: 0 0 0.75rem; padding-left: 1.5rem; }
+.markdown-content code { font-family: var(--font-mono); font-size: 0.9em; }
+.markdown-content pre { margin: 0.75rem 0; overflow-x: auto; }
+.markdown-content pre code { padding: 0; }
+
+/* Data block (inverted) */
+.data-block {
+  background: var(--ink);
+  color: var(--bg);
+  padding: 1.5rem;
+  margin: 2rem 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.data-block::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: radial-gradient(var(--bg) 1px, transparent 1px);
+  background-size: 4px 4px;
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+.data-label {
+  color: var(--bg);
+  opacity: 0.7;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(255,255,255,0.3);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+}
+
+.data-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+}
+
+.data-row:last-child { border: none; }
+
+/* Context panel */
+.context-panel {
+  background: #E5E3DE;
+  display: flex;
+  flex-direction: column;
+}
+
+.context-img {
+  height: 200px;
+  width: 100%;
+  background: var(--ink);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.noise-graphic {
+  width: 100%;
+  height: 100%;
+  background:
+    linear-gradient(45deg, transparent 45%, var(--bg) 45%, var(--bg) 55%, transparent 55%),
+    linear-gradient(-45deg, transparent 45%, var(--bg) 45%, var(--bg) 55%, transparent 55%);
+  background-size: 10px 10px;
+  filter: contrast(500%) grayscale(100%);
+  opacity: 0.2;
+}
+
+.context-img-caption {
+  position: absolute;
+  z-index: 2;
+  color: var(--bg);
+  font-family: 'Courier New', monospace;
+  border: 1px solid var(--bg);
+  padding: 4px 8px;
+}
+
+.action-list {
+  padding: 1.5rem;
+}
+
+.legacy-btn {
+  display: block;
+  width: 100%;
+  padding: 1rem;
+  background: transparent;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  font-family: var(--font-main);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  text-align: left;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.legacy-btn:hover {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.legacy-btn span {
+  float: right;
+}
+
+.legacy-btn-dashed {
+  border-style: dashed;
+}
+
+.legacy-btn-dashed + .legacy-btn-dashed {
+  border-top: none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--ink);
+}
+
+@media (max-width: 1000px) {
+  .app-container {
+    grid-template-columns: 240px 1fr;
+  }
+  .context-panel {
+    display: none;
+  }
+}
+
+/* Unlock / standalone pages (centered card) */
+.legacy-standalone {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.legacy-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 2rem;
+  background: var(--bg);
+  border: 1px solid var(--line-color);
+}
+
+.legacy-card input[type="text"],
+.legacy-card input[type="password"],
+.legacy-card textarea {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-main);
+  font-size: 1rem;
+  margin-top: 0.25rem;
+}
+.legacy-card label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.5rem;
+}
+
+/* Focus and a11y */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -29,7 +444,7 @@ button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
 
@@ -38,6 +453,45 @@ a,
 input,
 textarea {
   touch-action: manipulation;
+}
+
+/* Form inputs in legacy content (match design) */
+.legacy-content input[type="text"],
+.legacy-content input[type="password"],
+.legacy-content input[type="url"],
+.legacy-content input[type="email"],
+.legacy-content input[type="number"],
+.legacy-content input[type="date"],
+.legacy-content textarea {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-main);
+  font-size: 1rem;
+  margin-top: 0.25rem;
+}
+.legacy-content textarea {
+  resize: vertical;
+  min-height: 4rem;
+}
+.legacy-content label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.5rem;
+}
+.legacy-content fieldset {
+  border: 1px solid var(--line-color);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+.legacy-content legend {
+  padding: 0 0.5rem;
+  font-weight: 400;
 }
 
 .sr-only {
@@ -50,4 +504,27 @@ textarea {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Print: hide chrome, show content only */
+@media print {
+  .texture-overlay,
+  .legacy-header,
+  .legacy-sidebar,
+  .context-panel,
+  .no-print {
+    display: none !important;
+  }
+  .app-container {
+    display: block;
+    margin: 0;
+    border: none;
+  }
+  .legacy-content {
+    max-width: none;
+    padding: 0;
+  }
+  .print-view .print-warning {
+    break-after: avoid;
+  }
 }

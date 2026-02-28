@@ -6,6 +6,38 @@ All notable changes to LegacyLink are documented here.
 
 ### Added
 
+- **Store flow and Add Passkey (plan phases 1–2)**
+  - **Store flow (1.1):** UnlockPage choice "Create a new LegacyLink Store"; create-key screen heading "Create a new decryption key for this store" so the two steps are explicit.
+  - **Store flow (1.2):** Open existing store: submit button shows "Verifying key…" while verifying decryption key (replacing "Checking…").
+  - **Add a Passkey (2):** Export/Import page uses "Add a Passkey" as primary label (button, aria-label, loading "Adding…"); when registered, "A passkey is added for this vault." Unlock page shows hint: "After unlocking, open Export / Import to add a passkey for easier unlock."
+- **Categories (plan phase 3)**
+  - **Data model:** `Category { id, name }`, `VaultData.categories`, optional `Entry.categoryId`. Vault version 2 with migration for existing vaults.
+  - **Categories page** at `/categories`: list, add, rename, delete (delete only when no entries use the category). Sidebar link under Emergency Protocols.
+  - **Entry form:** Category dropdown on New Entry and Edit (TemplateForm); createEntry/updateEntry accept optional categoryId.
+  - **Entry list:** Category shown per entry; filter dropdown (All / Uncategorized / per category).
+- **Markdown support (plan phase 8)**
+  - **react-markdown** and **remark-gfm** for rendering markdown. **MarkdownContent** component with `.markdown-content` styling.
+  - **DataBlock** row value type extended to `string | ReactNode`. Entry detail: **textarea** section values rendered as Markdown; passwords and non-textarea fields unchanged.
+- **For Successors (plan phase 4)**
+  - **Data model:** `VaultData.successorGuide` (optional string). Vault version 3 with migration.
+  - **SuccessorGuidePage** at `/successor-guide`: view and edit the successor guide (Markdown supported). Sidebar link "For Successors".
+- **History (plan phase 5)**
+  - **Data model:** `VaultData.history: HistoryEntry[]` (at, action, entryId?, entryTitle?, summary?). Capped at 500 entries. Actions: store_created, vault_imported, entry_created, entry_updated, entry_deleted.
+  - **Recording:** History appended on createNewStore, createEntry, updateEntry, deleteEntry, importVault, importExistingStore.
+  - **HistoryPage** at `/history`: read-only list (newest first). Sidebar link "History".
+- **Print / PDF (plan phase 6)**
+  - **PrintViewPage** at `/print`: full vault (For Successors + all entries). "Print / Save as PDF" button; browser Print → Save as PDF. Warning that printed/PDF content is unencrypted.
+  - **Print CSS:** `@media print` hides header, sidebar, context panel; `.no-print` for back/print toolbar. Entry list and Export/Import: "Print vault" link.
+- **Keys & certificates (plan phase 7)**
+  - **Data model:** `VaultData.uploadedKeys: UploadedKey[]` (id, name, type ssh|cert, contentBase64, uploadedAt). Stored encrypted with vault.
+  - **KeysPage** at `/keys`: list uploaded keys (name, type, date), upload (max 2 MB, PEM/OpenSSH/.crt), download, delete. Sidebar link "Keys & certs".
+- **Design system and layout**
+  - New visual design applied across the app: warm gray background (`#EEEDE9`), black ink, texture overlay, and typography (type-display, type-label, type-mono). Global design tokens and utility classes in `index.css`.
+  - **App layout**: Three-column grid (sidebar 280px, main content, context panel 320px) with header (brand “LEGACY DOCS”, status pill “Local Storage Active”, vault status, Lock button), left sidebar (System Index with Overview + entry list, Emergency Protocols with Power Failure and Successor Key), and optional right context panel on entry detail (Quick Actions: Edit Document, View History, Print/PDF; Related Systems; system ID footer).
+  - Reusable layout components in `src/components/layout/`: `TextureOverlay`, `Brand`, `StatusPill`, `NavSection`, `NavItem`, `DataBlock`, `DocMeta`, `ActionButton`, `ContextPanel`, `AppLayout`, `ProtectedLayout`. Entry detail page uses `DocMeta`, `DataBlock` for sections, and registers context-panel actions via `LayoutContext`.
+  - Unlock page uses `TextureOverlay`, `legacy-standalone`, and `legacy-card` with the same design tokens. Form inputs and buttons use border-based legacy styles.
+  - Routes refactored: protected routes render inside `ProtectedLayout` (with `LayoutProvider`) and nested routes for `entries`, `entries/new`, `entries/:id`, `export-import`.
+
 - **Unlock / Store**
   - When no store exists locally, user can choose: **Create new LegacyLink Store** (then set a new decryption key and confirm) or **Open existing LegacyLink Store** (select exported file, then enter decryption key; key is verified before importing).
   - New store creation persists an empty encrypted vault and unlocks in one step; opening existing store decrypts the file to verify the key, then saves to local storage and unlocks.

@@ -1,11 +1,13 @@
 import React from "react";
-import type { Template, Entry, SectionData } from "../vault-types";
+import type { Template, Entry, SectionData, Category } from "../vault-types";
 import { forms } from "../styles/shared";
 
 interface TemplateFormProps {
   template: Template;
   entry: Entry;
-  onUpdate: (sections: Record<string, SectionData>, title: string) => void | Promise<void>;
+  /** Categories for optional category dropdown. If omitted, category selector is hidden. */
+  categories?: Category[];
+  onUpdate: (sections: Record<string, SectionData>, title: string, categoryId?: string) => void | Promise<void>;
   onCancel: () => void;
   /** Called after onUpdate completes (e.g. for analytics). Optional. */
   onSave?: () => void;
@@ -15,12 +17,14 @@ interface TemplateFormProps {
 export function TemplateForm({
   template,
   entry,
+  categories = [],
   onUpdate,
   onCancel,
   onSave,
   saveLabel = "Save",
 }: TemplateFormProps) {
   const [title, setTitle] = React.useState(entry.title);
+  const [categoryId, setCategoryId] = React.useState(entry.categoryId ?? "");
   const [sections, setSections] = React.useState<Record<string, SectionData>>(
     () => ({ ...entry.sections })
   );
@@ -37,7 +41,7 @@ export function TemplateForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onUpdate(sections, title);
+    await onUpdate(sections, title, categoryId === "" ? undefined : categoryId);
     onSave?.();
   };
 
@@ -55,6 +59,23 @@ export function TemplateForm({
           style={forms.titleInput}
         />
       </div>
+      {categories.length > 0 && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          <label htmlFor="entry-category">Category</label>
+          <select
+            id="entry-category"
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            style={{ ...forms.input, padding: "0.5rem 0.75rem" }}
+            aria-label="Category"
+          >
+            <option value="">Uncategorized</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
       {template.sections.map((section) => (
         <fieldset key={section.id} style={forms.fieldset}>
           <legend style={forms.legend}>{section.label}</legend>
