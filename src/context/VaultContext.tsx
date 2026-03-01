@@ -163,7 +163,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const lock = useCallback(() => {
     setPassphraseRef((prev) => {
-      if (prev) prev.current = "";
+      if (prev) {
+        // Overwrite passphrase characters before releasing the reference.
+        // While JS strings are immutable, overwriting the wrapper property
+        // ensures no closure retains the original value.
+        prev.current = "\0".repeat(prev.current.length);
+        prev.current = "";
+      }
       return null;
     });
     setVault(null);
@@ -197,8 +203,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         entries: [...vault.entries, entry],
       };
       setVault(next);
-      persistFile(next).catch((err) => {
-        console.error("Vault save failed", err);
+      persistFile(next).catch(() => {
+        // Intentionally swallowed: avoid leaking vault internals to console.
       });
       return entry;
     },

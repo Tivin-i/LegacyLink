@@ -26,7 +26,7 @@ export async function deriveKey(
       name: KDF_NAME,
       salt: salt as BufferSource,
       iterations: PBKDF2_ITERATIONS,
-      hash: "SHA-256",
+      hash: "SHA-512",
     },
     keyMaterial,
     { name: "AES-GCM", length: KEY_LENGTH },
