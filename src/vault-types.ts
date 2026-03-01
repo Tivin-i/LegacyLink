@@ -47,6 +47,10 @@ export interface VaultData {
   userAka?: string;
   /** Max number of version snapshots to keep in file. Stored in encrypted payload. Default 10. */
   versionHistoryLimit?: number;
+  /** Auto-lock timeout in minutes. 0 = disabled. Default 0. */
+  autoLockMinutes?: number;
+  /** Salt length in bytes for key derivation. 16 or 32. Default 16. */
+  saltLength?: number;
 }
 
 /**

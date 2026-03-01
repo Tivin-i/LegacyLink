@@ -7,7 +7,7 @@ import {
 } from "../crypto/vault-crypto";
 import type { VaultData, Entry, HistoryEntry, DecryptedVaultPayload } from "../vault-types";
 
-const VAULT_VERSION = 4;
+const VAULT_VERSION = 5;
 const DEFAULT_VERSION_HISTORY_LIMIT = 10;
 
 function migrateVault(data: VaultData): VaultData {
@@ -32,8 +32,16 @@ function migrateVault(data: VaultData): VaultData {
   if (out.version < 4) {
     out = {
       ...out,
-      version: VAULT_VERSION,
+      version: 4,
       userAka: out.userAka ?? "",
+    };
+  }
+  if (out.version < 5) {
+    out = {
+      ...out,
+      version: VAULT_VERSION,
+      autoLockMinutes: out.autoLockMinutes ?? 0,
+      saltLength: out.saltLength ?? 16,
     };
   }
   out.versionHistoryLimit = out.versionHistoryLimit ?? DEFAULT_VERSION_HISTORY_LIMIT;
@@ -65,6 +73,8 @@ export function createInitialPayload(): DecryptedVaultPayload {
     uploadedKeys: [],
     userAka: "",
     versionHistoryLimit: DEFAULT_VERSION_HISTORY_LIMIT,
+    autoLockMinutes: 0,
+    saltLength: 16,
   };
   return {
     current,
@@ -81,9 +91,10 @@ export { migrateVault };
  */
 export async function exportVaultEncrypted(
   passphrase: string,
-  data: VaultData
+  data: VaultData,
+  saltLength?: number
 ): Promise<StoredEncryptedBlob> {
-  const blob = await encryptVault(passphrase, data);
+  const blob = await encryptVault(passphrase, data, saltLength);
   return blobToStored(blob);
 }
 

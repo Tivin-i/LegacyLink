@@ -37,7 +37,9 @@ export async function deriveKey(
 
 /**
  * Generate a random salt for key derivation.
+ * @param length Override salt length in bytes (default: SALT_LENGTH from constants).
  */
-export function randomSalt(): Uint8Array {
-  return crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+export function randomSalt(length?: number): Uint8Array {
+  const len = length ?? SALT_LENGTH;
+  return crypto.getRandomValues(new Uint8Array(len));
 }

@@ -19,6 +19,16 @@ function formatSnapshotLabel(vault: { history?: { at?: string }[]; entries?: { u
   return `Snapshot ${index + 1}`;
 }
 
+const AUTO_LOCK_OPTIONS = [
+  { value: 0, label: "Disabled" },
+  { value: 5, label: "5 minutes" },
+  { value: 15, label: "15 minutes" },
+  { value: 30, label: "30 minutes" },
+  { value: 60, label: "1 hour" },
+  { value: 120, label: "2 hours" },
+  { value: 480, label: "8 hours" },
+];
+
 export function SettingsPage() {
   const {
     userAka,
@@ -28,6 +38,10 @@ export function SettingsPage() {
     versionSnapshots,
     restoreVersion,
     estimatedVaultSizeBytes,
+    autoLockMinutes,
+    updateAutoLockMinutes,
+    saltLength,
+    updateSaltLength,
   } = useVault();
   const [aka, setAka] = useState(userAka);
   const [versionLimit, setVersionLimit] = useState(String(versionHistoryLimit));
@@ -40,6 +54,15 @@ export function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [versionSaved, setVersionSaved] = useState(false);
   const [restoring, setRestoring] = useState<number | null>(null);
+  const [securitySaved, setSecuritySaved] = useState(false);
+  const [localAutoLock, setLocalAutoLock] = useState(autoLockMinutes);
+  const [localSaltLength, setLocalSaltLength] = useState(saltLength);
+  useEffect(() => {
+    setLocalAutoLock(autoLockMinutes);
+  }, [autoLockMinutes]);
+  useEffect(() => {
+    setLocalSaltLength(saltLength);
+  }, [saltLength]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +88,14 @@ export function SettingsPage() {
     } finally {
       setRestoring(null);
     }
+  };
+
+  const handleSecuritySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await updateAutoLockMinutes(localAutoLock);
+    await updateSaltLength(localSaltLength);
+    setSecuritySaved(true);
+    setTimeout(() => setSecuritySaved(false), 2000);
   };
 
   return (
@@ -130,6 +161,54 @@ export function SettingsPage() {
             Save
           </button>
           {versionSaved && (
+            <span style={{ fontSize: "0.875rem", opacity: 0.8 }}>Saved.</span>
+          )}
+        </div>
+      </form>
+
+      <h2 className="type-display" style={{ fontSize: "1.25rem", marginTop: "2.5rem", marginBottom: "0.5rem" }}>
+        Security
+      </h2>
+      <p className="content-body" style={{ marginTop: "0.25rem", marginBottom: "1rem" }}>
+        Configure auto-lock timeout and encryption salt length. Changes apply to future saves.
+      </p>
+      <form onSubmit={handleSecuritySubmit} style={{ maxWidth: "24rem" }}>
+        <label htmlFor="settings-auto-lock">Auto-lock timeout</label>
+        <select
+          id="settings-auto-lock"
+          value={localAutoLock}
+          onChange={(e) => setLocalAutoLock(Number(e.target.value))}
+          aria-label="Auto-lock timeout"
+          style={{ marginTop: "0.25rem", marginBottom: "0.5rem", display: "block", width: "100%", padding: "0.5rem" }}
+        >
+          {AUTO_LOCK_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <p style={{ fontSize: "0.875rem", opacity: 0.85, marginBottom: "1rem" }}>
+          Automatically lock the vault after a period of inactivity. Set to Disabled for no auto-lock.
+        </p>
+
+        <label htmlFor="settings-salt-length">Salt length (bytes)</label>
+        <select
+          id="settings-salt-length"
+          value={localSaltLength}
+          onChange={(e) => setLocalSaltLength(Number(e.target.value))}
+          aria-label="Salt length"
+          style={{ marginTop: "0.25rem", marginBottom: "0.5rem", display: "block", width: "100%", padding: "0.5rem" }}
+        >
+          <option value={16}>16 bytes (128-bit, standard)</option>
+          <option value={32}>32 bytes (256-bit, stronger)</option>
+        </select>
+        <p style={{ fontSize: "0.875rem", opacity: 0.85, marginBottom: "1rem" }}>
+          Longer salt strengthens key derivation against rainbow table attacks. Applies to future saves only; existing data is unaffected.
+        </p>
+
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <button type="submit" className="legacy-btn legacy-btn-primary" style={{ width: "auto" }}>
+            Save
+          </button>
+          {securitySaved && (
             <span style={{ fontSize: "0.875rem", opacity: 0.8 }}>Saved.</span>
           )}
         </div>

@@ -2,7 +2,9 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { VaultData, Entry, SectionData, Category, HistoryEntry, UploadedKey } from "../vault-types";
@@ -85,6 +87,12 @@ interface VaultContextValue {
   addUploadedKey: (name: string, type: "ssh" | "cert", contentBase64: string, mimeType?: string) => Promise<void>;
   deleteUploadedKey: (id: string) => Promise<void>;
   getUploadedKey: (id: string) => UploadedKey | undefined;
+  /** Auto-lock timeout in minutes. 0 = disabled. */
+  autoLockMinutes: number;
+  updateAutoLockMinutes: (minutes: number) => Promise<void>;
+  /** Salt length in bytes for key derivation (16 or 32). */
+  saltLength: number;
+  updateSaltLength: (length: number) => Promise<void>;
 }
 
 const VaultContext = createContext<VaultContextValue | null>(null);
@@ -103,7 +111,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     async (data: VaultData) => {
       if (!fileHandle || !passphraseRef) return;
       const nextPayload = buildPayloadForSave(lastPayload, data);
-      await writeVaultToHandle(fileHandle, passphraseRef.current, nextPayload);
+      await writeVaultToHandle(fileHandle, passphraseRef.current, nextPayload, data.saltLength);
       setLastPayload(nextPayload);
     },
     [fileHandle, passphraseRef, lastPayload]
@@ -332,7 +340,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const exportVault = useCallback(async (): Promise<StoredEncryptedBlob | null> => {
     if (!vault || !passphraseRef) return null;
-    return exportVaultEncrypted(passphraseRef.current, vault);
+    return exportVaultEncrypted(passphraseRef.current, vault, vault.saltLength);
   }, [vault, passphraseRef]);
 
   const saveCopyToHandle = useCallback(
@@ -344,7 +352,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           versions: [],
           versionHistoryLimit: vault.versionHistoryLimit ?? 10,
         };
-        await writeVaultToHandle(handle, passphraseRef.current, payload);
+        await writeVaultToHandle(handle, passphraseRef.current, payload, vault.saltLength);
         return { ok: true };
       } catch (e) {
         const message = e instanceof Error ? e.message : "Save copy failed.";
@@ -422,6 +430,53 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     },
     [vault, passphraseRef, persistFile]
   );
+
+  const autoLockMinutes = vault?.autoLockMinutes ?? 0;
+  const updateAutoLockMinutes = useCallback(
+    async (minutes: number) => {
+      if (!vault || !passphraseRef) return;
+      const n = Math.max(0, Math.min(480, Math.round(minutes)));
+      const next = { ...vault, autoLockMinutes: n };
+      setVault(next);
+      await persistFile(next);
+    },
+    [vault, passphraseRef, persistFile]
+  );
+
+  const saltLengthValue = vault?.saltLength ?? 16;
+  const updateSaltLength = useCallback(
+    async (length: number) => {
+      if (!vault || !passphraseRef) return;
+      const valid = length === 32 ? 32 : 16;
+      const next = { ...vault, saltLength: valid };
+      setVault(next);
+      await persistFile(next);
+    },
+    [vault, passphraseRef, persistFile]
+  );
+
+  // Auto-lock timer: locks vault after configured inactivity period
+  const autoLockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!isUnlocked || autoLockMinutes <= 0) return;
+
+    const resetTimer = () => {
+      if (autoLockTimerRef.current) clearTimeout(autoLockTimerRef.current);
+      autoLockTimerRef.current = setTimeout(() => {
+        lock();
+      }, autoLockMinutes * 60_000);
+    };
+
+    const events = ["mousedown", "keydown", "scroll", "touchstart"] as const;
+    events.forEach((evt) => window.addEventListener(evt, resetTimer, { passive: true }));
+    resetTimer();
+
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, resetTimer));
+      if (autoLockTimerRef.current) clearTimeout(autoLockTimerRef.current);
+    };
+  }, [isUnlocked, autoLockMinutes, lock]);
 
   const versionSnapshots = lastPayload?.versions ?? [];
 
@@ -528,6 +583,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       addUploadedKey,
       deleteUploadedKey,
       getUploadedKey,
+      autoLockMinutes,
+      updateAutoLockMinutes,
+      saltLength: saltLengthValue,
+      updateSaltLength,
     }),
     [
       isUnlocked,
@@ -563,6 +622,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       addUploadedKey,
       deleteUploadedKey,
       getUploadedKey,
+      autoLockMinutes,
+      updateAutoLockMinutes,
+      saltLengthValue,
+      updateSaltLength,
     ]
   );
 

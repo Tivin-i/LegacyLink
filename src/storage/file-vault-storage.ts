@@ -65,13 +65,15 @@ export async function readVaultFromHandle(
 
 /**
  * Encrypt payload and write to the given file handle.
+ * @param saltLength Optional salt length override (bytes).
  */
 export async function writeVaultToHandle(
   handle: FileSystemFileHandle,
   passphrase: string,
-  payload: DecryptedVaultPayload
+  payload: DecryptedVaultPayload,
+  saltLength?: number
 ): Promise<void> {
-  const blob = await encryptPayload(passphrase, payload);
+  const blob = await encryptPayload(passphrase, payload, saltLength);
   const stored = blobToStored(blob);
   const text = JSON.stringify(stored, null, 2);
   const writable = await handle.createWritable();

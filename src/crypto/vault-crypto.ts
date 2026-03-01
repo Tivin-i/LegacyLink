@@ -18,12 +18,14 @@ export interface EncryptedBlob {
 
 /**
  * Encrypt vault data with a passphrase. Salt and IV are generated and included in the result.
+ * @param saltLength Optional salt length override (bytes). Defaults to SALT_LENGTH constant.
  */
 export async function encryptVault(
   passphrase: string,
-  data: VaultData
+  data: VaultData,
+  saltLength?: number
 ): Promise<EncryptedBlob> {
-  const salt = randomSalt();
+  const salt = randomSalt(saltLength);
   const key = await deriveKey(passphrase, salt);
   const plaintext = new TextEncoder().encode(JSON.stringify(data));
   const { iv, ciphertext } = await encrypt(key, plaintext);
@@ -81,12 +83,14 @@ function isDecryptedVaultPayload(value: unknown): value is DecryptedVaultPayload
 /**
  * Encrypt the full vault file payload (current + versions + limit).
  * Used for file-based storage; entire file is one encrypted blob.
+ * @param saltLength Optional salt length override (bytes). Defaults to SALT_LENGTH constant.
  */
 export async function encryptPayload(
   passphrase: string,
-  payload: DecryptedVaultPayload
+  payload: DecryptedVaultPayload,
+  saltLength?: number
 ): Promise<EncryptedBlob> {
-  const salt = randomSalt();
+  const salt = randomSalt(saltLength);
   const key = await deriveKey(passphrase, salt);
   const plaintext = new TextEncoder().encode(
     JSON.stringify({ ...payload, format: PAYLOAD_FORMAT_VERSION })
