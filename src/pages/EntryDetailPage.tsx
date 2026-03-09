@@ -14,12 +14,13 @@ export function EntryDetailPage() {
   const { getEntry, updateEntry, deleteEntry, categories, userAka } = useVault();
   const { setContextPanelActions } = useLayoutContext() ?? {};
   const entry = id ? getEntry(id) : undefined;
+  const template = entry ? getTemplate(entry.templateId) : undefined;
   const [editing, setEditing] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
   useEffect(() => {
     if (setContextPanelActions == null) return;
-    if (entry == null) {
+    if (entry == null || template == null) {
       setContextPanelActions(null);
       return;
     }
@@ -28,7 +29,7 @@ export function EntryDetailPage() {
       onPrint: () => window.print(),
     });
     return () => setContextPanelActions(null);
-  }, [entry?.id, setContextPanelActions]);
+  }, [entry, setContextPanelActions, template]);
 
   if (!entry) {
     return (
@@ -41,7 +42,6 @@ export function EntryDetailPage() {
     );
   }
 
-  const template = getTemplate(entry.templateId);
   if (!template) {
     return (
       <div className="legacy-content">
@@ -117,20 +117,13 @@ export function EntryDetailPage() {
       <DocMeta
         items={[
           { label: "Last Updated", value: formattedDate },
-          { label: "Author", value: userAka ? <>Admin <sup className="sup-tag">aka {userAka}</sup></> : "Admin" },
-          { label: "Status", value: <>Live <sup className="sup-tag">(US-EAST)</sup></> },
+          { label: "Author", value: userAka || "Admin" },
         ]}
       />
 
       <h1 className="type-display">
         {entry.title}
       </h1>
-
-      <div className="content-body">
-        <p>
-          This document outlines the system and access details. Use the index to navigate between systems.
-        </p>
-      </div>
 
       {template.sections.map((section) => {
         const rows = section.fields.map((field) => {
@@ -150,20 +143,10 @@ export function EntryDetailPage() {
           <DataBlock
             key={section.id}
             title={section.label}
-            badge="[READ ONLY]"
             rows={rows}
           />
         );
       })}
-
-      <div className="content-body" style={{ marginTop: "3rem" }}>
-        <h3 style={{ fontSize: "1.5rem", marginBottom: "1rem", fontWeight: 400 }}>
-          Actions
-        </h3>
-        <p>
-          Use the Quick Actions panel to edit this document, view history, or print / export to PDF.
-        </p>
-      </div>
     </div>
   );
 }

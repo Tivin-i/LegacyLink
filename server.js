@@ -5,12 +5,16 @@
  * Serves the contents of ./dist (run npm run build first).
  */
 
-const http = require("http");
-const fs = require("fs");
-const path = require("path");
+import { createServer } from "node:http";
+import { readFile, realpath } from "node:fs/promises";
+import { dirname, extname, join, posix, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.argv[2] || "3000", 10);
-const DIST = path.join(__dirname, "dist");
+const DIST = join(__dirname, "dist");
+const DIST_REALPATH = await realpath(DIST);
+const DIST_PREFIX = `${DIST_REALPATH}${sep}`;
 
 const MIMES = {
   ".html": "text/html",
@@ -24,39 +28,115 @@ const MIMES = {
   ".woff2": "font/woff2",
 };
 
-const server = http.createServer((req, res) => {
+const SECURITY_HEADERS = {
+  "Content-Security-Policy": [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "object-src 'none'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "worker-src 'self' blob:",
+  ].join("; "),
+  "Permissions-Policy": [
+    "accelerometer=()",
+    "camera=()",
+    "geolocation=()",
+    "gyroscope=()",
+    "magnetometer=()",
+    "microphone=()",
+    "payment=()",
+    "usb=()",
+  ].join(", "),
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "X-XSS-Protection": "0",
+};
+
+function sendResponse(res, statusCode, headers = {}, body = "") {
+  res.writeHead(statusCode, { ...SECURITY_HEADERS, ...headers });
+  res.end(body);
+}
+
+function resolveRequestPath(urlPath) {
+  return resolve(DIST, `.${urlPath}`);
+}
+
+function isPathInsideDist(filePath) {
+  return filePath === DIST_REALPATH || filePath.startsWith(DIST_PREFIX);
+}
+
+function shouldServeSpaFallback(urlPath) {
+  return extname(urlPath) === "";
+}
+
+async function sendSpaFallback(res) {
+  try {
+    const indexData = await readFile(join(DIST_REALPATH, "index.html"));
+    sendResponse(res, 200, { "Content-Type": "text/html" }, indexData);
+  } catch {
+    sendResponse(res, 500, {}, "Internal error");
+  }
+}
+
+async function handleRequest(req, res) {
   let url = req.url || "/";
   const q = url.indexOf("?");
   if (q !== -1) url = url.slice(0, q);
   if (url === "/") url = "/index.html";
-  const file = path.join(DIST, path.normalize(url).replace(/^(\.\.(\/|\\))+/, ""));
-  if (!file.startsWith(DIST)) {
-    res.writeHead(403);
-    res.end();
+  const normalizedUrl = posix.normalize(url);
+
+  const file = resolveRequestPath(normalizedUrl);
+  if (!isPathInsideDist(file)) {
+    sendResponse(res, 403);
     return;
   }
-  fs.readFile(file, (err, data) => {
-    if (err) {
-      if (err.code === "ENOENT") {
-        fs.readFile(path.join(DIST, "index.html"), (e2, indexData) => {
-          if (e2) {
-            res.writeHead(500);
-            res.end("Internal error");
-            return;
-          }
-          res.writeHead(200, { "Content-Type": "text/html" });
-          res.end(indexData);
-        });
-        return;
-      }
-      res.writeHead(500);
-      res.end();
+
+  try {
+    const realFile = await realpath(file);
+    if (!isPathInsideDist(realFile)) {
+      sendResponse(res, 403);
       return;
     }
-    const ext = path.extname(file);
-    const contentType = MIMES[ext] || "application/octet-stream";
-    res.writeHead(200, { "Content-Type": contentType });
-    res.end(data);
+
+    const data = await readFile(realFile);
+    const contentType = MIMES[extname(realFile)] || "application/octet-stream";
+    sendResponse(res, 200, { "Content-Type": contentType }, data);
+  } catch (err) {
+    const errorCode =
+      typeof err === "object" && err !== null && "code" in err && typeof err.code === "string"
+        ? err.code
+        : undefined;
+
+    if (errorCode === "ENOENT" && shouldServeSpaFallback(normalizedUrl)) {
+      await sendSpaFallback(res);
+      return;
+    }
+
+    if (errorCode === "ENOENT") {
+      sendResponse(res, 404);
+      return;
+    }
+
+    if (errorCode === "EACCES") {
+      sendResponse(res, 403);
+      return;
+    }
+
+    sendResponse(res, 500);
+  }
+}
+
+const server = createServer((req, res) => {
+  void handleRequest(req, res).catch(() => {
+    if (!res.headersSent) {
+      sendResponse(res, 500);
+    }
   });
 });
 

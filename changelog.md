@@ -4,6 +4,28 @@ All notable changes to LegacyLink are documented here.
 
 ## [Unreleased]
 
+## [0.2.1] – 2026-03-09
+
+### Changed
+
+- **Lint baseline:** Added a balanced ESLint 9 flat config, lint-specific TypeScript config, and React/Vitest/Node plugin wiring so `npm run lint` now covers the real repo surface without forcing a broad cleanup pass yet.
+
+## [0.2.0] – 2026-03-09
+
+### Fixed
+
+- **Static server hardening:** `server.js` now resolves requests against `dist` before serving files, adds baseline security headers, and keeps SPA fallback responses behind the same headers.
+- **Static server compatibility:** The self-hosted Node server now matches the repo's ESM configuration and resolves real file paths before serving them.
+- **Key file safety:** Uploaded keys and certificates now enforce supported file extensions, and downloaded filenames are sanitized before being handed to the browser.
+
+### Changed
+
+- **UI cleanup:** Removed non-functional placeholder items from the layout and entry detail view, including fake related links, fake system metadata, and filler action/status copy.
+- **Navigation clarity:** The sidebar tools section now uses a plain `Tools` label, and the context panel history button now routes to the actual history page.
+- **Author display:** Entry detail now shows the configured AKA directly when present instead of the hardcoded `Admin aka ...` format.
+- **Storage status:** The header now reflects the file-based vault model instead of incorrectly referring to local storage.
+- **Dependencies:** Removed the unused `zod` runtime dependency from the client bundle.
+
 ## [0.1.1] – 2026-02-28
 
 ### Security
@@ -45,7 +67,7 @@ All notable changes to LegacyLink are documented here.
   - **Types:** [DecryptedVaultPayload](src/vault-types.ts); [src/types/file-system-access.d.ts](src/types/file-system-access.d.ts) for `showSaveFilePicker` / `showOpenFilePicker` and handle types.
 
 - **Versioning**
-  - Project version in `package.json` (current 0.0.2). Scripts: `npm run version:patch`, `version:minor`, `version:major` (bump version, update changelog; script prints git tag and push commands). GitHub Actions **Release** workflow creates a GitHub Release when a `v*` tag is pushed. Cursor rule `.cursor/rules/versioning.mdc` for maintaining and bumping versions with every update (semver: patch = fixes/docs, minor = features, major = breaking).
+  - Project version in `package.json` (current 0.0.2). Scripts: `npm run version:patch`, `version:minor`, `version:major` (bump version, update changelog; script prints git tag and push commands). GitHub Actions **Release** workflow creates a GitHub Release when a `v*` tag is pushed. Versioning rule for maintaining and bumping versions with every update (semver: patch = fixes/docs, minor = features, major = breaking).
 - **Settings and AKA**
   - **Settings page** at `/settings`: set your AKA (nickname). Stored in vault as `userAka` (vault version 4 with migration). Sidebar link "Settings" under Emergency Protocols.
   - Entry detail DocMeta "Author" shows "Admin aka {userAka}" when set; otherwise "Admin".

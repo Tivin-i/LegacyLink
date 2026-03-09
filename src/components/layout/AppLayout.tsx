@@ -28,7 +28,7 @@ export function AppLayout({ children, contextPanel }: AppLayoutProps) {
     <div className="app-container">
       <header className="legacy-header border-b no-print">
         <Brand />
-        <StatusPill label="Local Storage Active" />
+        <StatusPill label="Vault File Active" />
         <div className="type-mono">
           VAULT: {vault != null ? "UNLOCKED" : "LOCKED"}
         </div>
@@ -64,13 +64,10 @@ export function AppLayout({ children, contextPanel }: AppLayoutProps) {
           })}
         </NavSection>
         <NavSection
-          label="Emergency Protocols:"
+          label="Tools:"
           className="border-b"
           style={{ marginTop: "auto", borderTop: "1px solid var(--ink)" }}
         >
-          <NavItem to="#" end>
-            Power Failure
-          </NavItem>
           <NavItem to="/categories" end>
             Categories
           </NavItem>

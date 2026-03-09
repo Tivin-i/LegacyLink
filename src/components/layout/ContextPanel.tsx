@@ -12,6 +12,8 @@ export function ContextPanel({
   onPrint,
   relatedLinks = [],
 }: ContextPanelProps) {
+  const hasRelatedLinks = relatedLinks.length > 0;
+
   return (
     <aside className="context-panel border-l">
       <div className="context-img border-b">
@@ -28,7 +30,7 @@ export function ContextPanel({
             Edit Document
           </ActionButton>
         )}
-        <Link to="/entries" className="legacy-btn" style={{ display: "block", marginBottom: -1 }}>
+        <Link to="/history" className="legacy-btn" style={{ display: "block", marginBottom: -1 }}>
           View History <span>→</span>
         </Link>
         {onPrint != null && (
@@ -37,7 +39,7 @@ export function ContextPanel({
           </ActionButton>
         )}
 
-        {relatedLinks.length > 0 && (
+        {hasRelatedLinks && (
           <>
             <div style={{ height: "2rem" }} />
             <span className="type-label">Related Systems:</span>
@@ -54,28 +56,6 @@ export function ContextPanel({
             ))}
           </>
         )}
-
-        {relatedLinks.length === 0 && (
-          <>
-            <div style={{ height: "2rem" }} />
-            <span className="type-label">Related Systems:</span>
-            <div style={{ height: "1rem" }} />
-            <button type="button" className="legacy-btn legacy-btn-dashed" style={{ marginBottom: -1 }}>
-              Firewall Rules
-            </button>
-            <button type="button" className="legacy-btn legacy-btn-dashed" style={{ borderTop: "none" }}>
-              VPN Keys
-            </button>
-          </>
-        )}
-      </div>
-
-      <div style={{ marginTop: "auto", padding: "1.5rem" }} className="border-t">
-        <div className="type-mono" style={{ fontSize: "0.7rem", opacity: 0.6 }}>
-          SYSTEM ID: A1-99<br />
-          ENCRYPTION: AES-256<br />
-          LOCAL ONLY
-        </div>
       </div>
     </aside>
   );

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type * as VaultCryptoModule from "../crypto/vault-crypto";
 import {
   readVaultFromFile,
   buildPayloadForSave,
@@ -7,7 +8,7 @@ import type { DecryptedVaultPayload, VaultData } from "../vault-types";
 import { MAX_VAULT_FILE_BYTES } from "../crypto/constants";
 
 vi.mock("../crypto/vault-crypto", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../crypto/vault-crypto")>();
+  const actual = await importOriginal<typeof VaultCryptoModule>();
   return {
     ...actual,
     decryptPayload: vi.fn().mockResolvedValue({

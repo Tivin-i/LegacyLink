@@ -6,6 +6,27 @@ import { ConfirmDeleteModal } from "../components/layout";
 const MAX_FILE_SIZE_MB = 2;
 const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 const ACCEPT = ".pem,.pub,application/x-pem-file,application/pgp-keys,application/x-x509-ca-cert,.crt,.cer,.der";
+const ALLOWED_EXTENSIONS = new Set([".pem", ".pub", ".crt", ".cer", ".der"]);
+const INVALID_FILENAME_CHARS = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069\\/]/g;
+
+function getFileExtension(filename: string) {
+  const dotIndex = filename.lastIndexOf(".");
+  return dotIndex === -1 ? "" : filename.slice(dotIndex).toLowerCase();
+}
+
+function sanitizeDownloadFilename(filename: string) {
+  const sanitized = filename.replace(INVALID_FILENAME_CHARS, "_").trim();
+  return sanitized === "" ? "download" : sanitized;
+}
+
+function inferUploadedKeyType(extension: string, bytes: Uint8Array) {
+  if (extension === ".pub") return "ssh";
+  if (extension === ".crt" || extension === ".cer" || extension === ".der") return "cert";
+  if (extension !== ".pem") return "cert";
+
+  const pemContent = new TextDecoder().decode(bytes);
+  return pemContent.includes("BEGIN CERTIFICATE") ? "cert" : "ssh";
+}
 
 export function KeysPage() {
   const { uploadedKeys, addUploadedKey, deleteUploadedKey, getUploadedKey } = useVault();
@@ -23,6 +44,13 @@ export function KeysPage() {
       setError(`File too large. Maximum ${MAX_FILE_SIZE_MB} MB.`);
       return;
     }
+
+    const extension = getFileExtension(file.name);
+    if (!ALLOWED_EXTENSIONS.has(extension)) {
+      setError("Unsupported file type. Use PEM, OpenSSH .pub, .crt, .cer, or .der files.");
+      return;
+    }
+
     setUploading(true);
     try {
       const buffer = await file.arrayBuffer();
@@ -30,7 +58,7 @@ export function KeysPage() {
       let binary = "";
       for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
       const contentBase64 = btoa(binary);
-      const type = /\.(pub|pem)$/i.test(file.name) ? "ssh" : "cert";
+      const type = inferUploadedKeyType(extension, bytes);
       await addUploadedKey(file.name, type, contentBase64);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
@@ -49,7 +77,7 @@ export function KeysPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = key.name;
+    a.download = sanitizeDownloadFilename(key.name);
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -83,7 +111,7 @@ export function KeysPage() {
           {uploading ? "Uploading…" : "Upload key or certificate"} <span>+</span>
         </button>
         <p style={{ fontSize: "0.875rem", opacity: 0.8, marginTop: "0.5rem" }}>
-          Max {MAX_FILE_SIZE_MB} MB per file. PEM, OpenSSH .pub, .crt, .cer supported.
+          Max {MAX_FILE_SIZE_MB} MB per file. PEM, OpenSSH .pub, .crt, .cer, and .der supported.
         </p>
       </div>
 

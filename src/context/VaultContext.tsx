@@ -22,6 +22,11 @@ import {
   buildPayloadForSave,
 } from "../storage/file-vault-storage";
 
+const EMPTY_CATEGORIES: Category[] = [];
+const EMPTY_VERSIONS: VaultData[] = [];
+const EMPTY_HISTORY: HistoryEntry[] = [];
+const EMPTY_UPLOADED_KEYS: UploadedKey[] = [];
+
 interface VaultContextValue {
   isUnlocked: boolean;
   vault: VaultData | null;
@@ -202,7 +207,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       });
       return entry;
     },
-    [vault, passphraseRef]
+    [vault, persistFile]
   );
 
   const createEntry = useCallback(
@@ -234,7 +239,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       await persistFile(next);
       return fullEntry;
     },
-    [vault, passphraseRef]
+    [vault, passphraseRef, persistFile]
   );
 
   const updateEntry = useCallback(
@@ -278,7 +283,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     [vault, passphraseRef, persistFile]
   );
 
-  const categories = vault?.categories ?? [];
+  const categories = useMemo(
+    () => vault?.categories ?? EMPTY_CATEGORIES,
+    [vault?.categories]
+  );
 
   const addCategory = useCallback(
     async (name: string) => {
@@ -417,7 +425,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     [vault, passphraseRef, persistFile]
   );
 
-  const versionSnapshots = lastPayload?.versions ?? [];
+  const versionSnapshots = useMemo(
+    () => lastPayload?.versions ?? EMPTY_VERSIONS,
+    [lastPayload?.versions]
+  );
 
   const restoreVersion = useCallback(
     async (index: number) => {
@@ -443,8 +454,14 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   }, [vault, lastPayload]);
 
-  const history = vault?.history ?? [];
-  const uploadedKeys = vault?.uploadedKeys ?? [];
+  const history = useMemo(
+    () => vault?.history ?? EMPTY_HISTORY,
+    [vault?.history]
+  );
+  const uploadedKeys = useMemo(
+    () => vault?.uploadedKeys ?? EMPTY_UPLOADED_KEYS,
+    [vault?.uploadedKeys]
+  );
 
   const addUploadedKey = useCallback(
     async (name: string, type: "ssh" | "cert", contentBase64: string, mimeType?: string) => {

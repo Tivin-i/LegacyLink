@@ -1,21 +1,28 @@
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useVault } from "../context/VaultContext";
 import { getTemplate } from "../templates";
+import type { Category, Entry } from "../vault-types";
 
 type CategoryFilter = "all" | "none" | string;
+const EMPTY_ENTRIES: Entry[] = [];
+const EMPTY_CATEGORIES: Category[] = [];
 
 export function EntryListPage() {
   const { vault } = useVault();
-  const entries = vault?.entries ?? [];
-  const categories = vault?.categories ?? [];
+  const entries = useMemo(() => vault?.entries ?? EMPTY_ENTRIES, [vault?.entries]);
+  const categories = useMemo(() => vault?.categories ?? EMPTY_CATEGORIES, [vault?.categories]);
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  const activeCategoryFilter = useMemo(() => {
+    if (categoryFilter === "all" || categoryFilter === "none") return categoryFilter;
+    return categories.some((category) => category.id === categoryFilter) ? categoryFilter : "all";
+  }, [categories, categoryFilter]);
 
   const filteredEntries = useMemo(() => {
-    if (categoryFilter === "all") return entries;
-    if (categoryFilter === "none") return entries.filter((e) => !e.categoryId || e.categoryId === "");
-    return entries.filter((e) => e.categoryId === categoryFilter);
-  }, [entries, categoryFilter]);
+    if (activeCategoryFilter === "all") return entries;
+    if (activeCategoryFilter === "none") return entries.filter((e) => !e.categoryId || e.categoryId === "");
+    return entries.filter((e) => e.categoryId === activeCategoryFilter);
+  }, [entries, activeCategoryFilter]);
 
   const categoryById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -49,7 +56,7 @@ export function EntryListPage() {
           <label htmlFor="filter-category" className="sr-only">Filter by category</label>
           <select
             id="filter-category"
-            value={categoryFilter}
+            value={activeCategoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
             style={{ padding: "0.5rem 0.75rem", minWidth: "10rem" }}
             aria-label="Filter by category"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 export interface ConfirmDeleteModalProps {
   open: boolean;
@@ -17,14 +17,28 @@ export function ConfirmDeleteModal({
   onConfirm,
   onCancel,
 }: ConfirmDeleteModalProps) {
+  if (!open) return null;
+
+  return (
+    <ConfirmDeleteModalContent
+      title={title}
+      resourceLabel={resourceLabel}
+      resourceName={resourceName}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
+  );
+}
+
+function ConfirmDeleteModalContent({
+  title,
+  resourceLabel,
+  resourceName,
+  onConfirm,
+  onCancel,
+}: Omit<ConfirmDeleteModalProps, "open">) {
   const [typedName, setTypedName] = useState("");
   const match = typedName.trim() === resourceName.trim();
-
-  useEffect(() => {
-    if (!open) setTypedName("");
-  }, [open]);
-
-  if (!open) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
