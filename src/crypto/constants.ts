@@ -1,4 +1,4 @@
-export const PBKDF2_ITERATIONS = 600_000;
+export const PBKDF2_ITERATIONS = 1_000_000;
 export const SALT_LENGTH = 16;
 export const IV_LENGTH = 12;
 export const KEY_LENGTH = 256;

@@ -12,6 +12,10 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.argv[2] || "3000", 10);
+if (!Number.isFinite(PORT) || PORT < 1 || PORT > 65535) {
+  console.error(`Invalid port: ${process.argv[2]}. Must be 1-65535.`);
+  process.exit(1);
+}
 const DIST = join(__dirname, "dist");
 const DIST_REALPATH = await realpath(DIST);
 const DIST_PREFIX = `${DIST_REALPATH}${sep}`;
@@ -58,6 +62,8 @@ const SECURITY_HEADERS = {
   "X-XSS-Protection": "0",
 };
 
+const MAX_URL_LENGTH = 2048;
+
 function sendResponse(res, statusCode, headers = {}, body = "") {
   res.writeHead(statusCode, { ...SECURITY_HEADERS, ...headers });
   res.end(body);
@@ -85,7 +91,15 @@ async function sendSpaFallback(res) {
 }
 
 async function handleRequest(req, res) {
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    sendResponse(res, 405);
+    return;
+  }
   let url = req.url || "/";
+  if (url.length > MAX_URL_LENGTH) {
+    sendResponse(res, 414);
+    return;
+  }
   const q = url.indexOf("?");
   if (q !== -1) url = url.slice(0, q);
   if (url === "/") url = "/index.html";
