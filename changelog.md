@@ -4,6 +4,10 @@ All notable changes to LegacyLink are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- **Contributor cleanup:** Avoid "cursoragent" / "Cursor Agent" as a separate contributor: added `.mailmap`, a pre-commit hook that blocks commits under that author, and `scripts/rewrite-cursoragent-author.sh` to rewrite history and force-push if needed.
+
 ## [0.2.1] – 2026-03-09
 
 ### Changed

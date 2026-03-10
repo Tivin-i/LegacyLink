@@ -1,0 +1,7 @@
+# Map Cursor/agent author identities to the canonical LegacyLink AI contributor.
+# GitHub does not use .mailmap for the Contributors tab; use scripts/rewrite-cursoragent-author.sh
+# and force-push to remove "cursoragent" / "Cursor Agent" from GitHub.
+LegacyLink AI <legacylink-ai@example.com> cursoragent <cursoragent@users.noreply.github.com>
+LegacyLink AI <legacylink-ai@example.com> Cursor Agent <cursoragent@users.noreply.github.com>
+LegacyLink AI <legacylink-ai@example.com> cursoragent <cursoragent@cursor.sh>
+LegacyLink AI <legacylink-ai@example.com> Cursor Agent <cursoragent@cursor.sh>
