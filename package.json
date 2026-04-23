@@ -10,6 +10,8 @@
     "lint": "eslint .",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "version:patch": "node scripts/bump-version.js patch",
     "version:minor": "node scripts/bump-version.js minor",
     "version:major": "node scripts/bump-version.js major"
@@ -23,6 +25,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.14.0",
+    "@playwright/test": "^1.50.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",
     "@types/node": "^25.3.5",

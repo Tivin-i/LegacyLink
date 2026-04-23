@@ -20,6 +20,9 @@ export default [
       "dist/**",
       "coverage/**",
       "scripts/git-hooks/**",
+      "playwright-report/**",
+      "test-results/**",
+      "blob-report/**",
     ],
   },
   {
